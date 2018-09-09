@@ -1,0 +1,33 @@
+---
+version: "{build}"
+clone_depth: 5
+init:
+  # Remove any ENV settings related to OpenSSL-Win
+  - set SSL_CERT_DIR=
+  - set SSL_CERT_FILE=
+  - set OPENSSL_CONF=
+  - set OPENSSL_DIR=
+  - ren C:\Windows\System32\libssl-1_1-x64.dll    libssl-1_1-x64.dll_ 
+  - ren C:\Windows\System32\libcrypto-1_1-x64.dll libcrypto-1_1-x64.dll_
+
+install:
+  # Update MSYS2 / MinGW and install OpenSSL
+  - ps: .\trunk_msys2.ps1
+  - git clone -q --depth=5 --no-tags --branch=master https://github.com/oneclick/rubyinstaller2.git    ./rubyinstaller2
+  - git clone -q --depth=5 --no-tags --branch=master https://github.com/ConnorAtherton/rb-readline.git ./ruby_readline
+  - git clone -q --depth=5 --no-tags --branch=trunk  https://github.com/ruby/ruby.git                  ./ruby
+  # below 3 lines just for special checkouts
+  #- cd \projects\ruby-loco\src\ruby
+  #- git checkout 72f88ebcc1
+  #- cd \projects\ruby-loco
+  
+build_script:
+  # builds, installs and tests
+  - ps: 1_build_install_64.ps1
+
+test_script:
+  - ps: 2_test.ps1
+
+on_finish:
+  - ren C:\Windows\System32\libssl-1_1-x64.dll_    libssl-1_1-x64.dll 
+  - ren C:\Windows\System32\libcrypto-1_1-x64.dll_ libcrypto-1_1-x64.dll

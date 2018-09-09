@@ -1,0 +1,14 @@
+/7z/
+/build/
+/git/
+/install/
+/logs/
+/ruby/
+/rubyinstaller2/
+/ruby_readline/
+
+*.txt
+*.log
+*.7z
+
+local.ps1

@@ -1,0 +1,360 @@
+# frozen_string_literal: true
+# encoding: UTF-8
+
+module TestScript
+  if ARGV.length == 0
+    ARCH = '64'
+    D_INSTALL = File.join __dir__, 'install'
+  elsif ARGV[0] == '32' || ARGV[0] == '64'
+    ARCH = ARGV[0]
+  else
+    puts "Incorrect first argument, must be '32' or '64'"
+    exit 1
+  end
+
+  if ARGV.length == 2 && !ARGV[1].nil?  && ARGV[1] != ''
+    D_INSTALL = File.join __dir__, ARGV[1]
+  elsif ARGV.length == 1
+    D_INSTALL = File.join __dir__, 'install'
+  end
+
+  D_LOGS  = File.join __dir__, 'logs'
+  D_RUBY  = File.join __dir__, 'ruby'
+  D_ZIPS  = File.join __dir__, 'zips'
+  D_MSYS2 = ENV['D_MSYS2']
+
+  Dir.chdir(D_RUBY) { |d| R_BRANCH = `git symbolic-ref -q HEAD`[/[^\/]+\Z/].strip }
+
+  YELLOW = "\e[33m"
+  RESET  = "\e[0m"
+  DASH   = '—'
+  IS_AV  = ( /true/i =~ ENV['APPVEYOR'] )     # Appveyor build vs local
+  
+  STRIPE_LEN = 55
+  PUTS_LEN   = 69
+  @@failures   = 0
+  
+  class << self
+  
+  def run
+    logs = []
+    Dir.chdir( File.join __dir__, 'logs')
+    logs = Dir["*.log"]
+   
+    warnings_str = ''.dup
+    results_str  = ''.dup
+
+    t1, sum_test_all = log_test_all( logs.find { |l| l == 'test_all.log' } )
+    results_str << t1
+    results_str << log_spec(  logs.find { |l| l == 'test_spec.log'          } )
+    results_str << log_basic( logs.find { |l| l == 'test_basic.log'         } )
+    results_str << log_btest( logs.find { |l| l == 'test_bootstrap_err.log' } )
+
+    sp = ' ' * @@failures.to_s.length
+    results_str = "#{@@failures} Total Failures/Errors                           " \
+                  "Build No #{ENV['APPVEYOR_BUILD_NUMBER']}    Job Id #{ENV['APPVEYOR_JOB_ID']}\n" \
+                  "#{sp} #{RUBY_DESCRIPTION}\n" \
+                  "#{sp} #{Time.now.getutc}\n\n" \
+                  "#{results_str}\n" \
+                  "#{command_line()}\n"
+
+    puts "#{YELLOW}#{DASH * PUTS_LEN} Test Results#{RESET}"
+    puts results_str
+
+    File.binwrite(File.join(D_LOGS, "Summary - Test Results.log"), results_str)
+
+    unless sum_test_all.empty?
+      puts "\n#{YELLOW}#{DASH * PUTS_LEN} Summary test-all#{RESET}"
+      puts sum_test_all
+      sum_test_all = sum_test_all.gsub(/^\e\[33m|\e\[0m$/, '')
+      File.binwrite(File.join(D_LOGS, "Summary - test-all.log"), sum_test_all)
+    end
+
+    Dir.chdir(__dir__)
+    zip_save
+  
+    if IS_AV
+      `appveyor AddMessage -Message \"Summary - All Tests\" -Details \"#{results_str}\"`
+
+      unless sum_test_all.empty?
+        `appveyor AddMessage -Message \"Summary - test-all\" -Details \"#{sum_test_all}\"`
+      end
+
+      unless warnings_str.empty?
+      `appveyor AddMessage -Message \"Build Warnings\" -Details \"#{warnings_str}\"`
+      end
+    end
+
+    exit @@failures
+  end
+
+  private
+
+  def log_warnings(log)
+    str = ''.dup
+    if !log.empty? && (s = File.binread(log))
+      s.gsub!(/\r/, '')
+      s.scan(/^\.\.[^\n]+\n[^\n].+?:\d+:\d+: warning: .+?\^\n/m) { |w|
+        str << "#{w}\n"
+      }
+    end
+    str
+  end
+
+  def log_test_all(log)
+    # 16538 tests, 2190218 assertions, 1 failures, 0 errors, 234 skips
+    if log
+      if (s = File.binread(log).gsub("\r", '')).length >= 256
+        temp = s[-256,256][/^\d{5,} tests[^\r\n]+/]
+        results = String.new(temp || "CRASHED?")
+        if temp
+          @@failures += results[/assertions, (\d+) failures?/,1].to_i + results[/failures?, (\d+) errors?/,1].to_i
+          # find last skipped
+          skips_shown = 0
+          s.scan(/^ *(\d+)\) Skipped:/) { |m| skips_shown += 1 }
+          results << ", #{skips_shown} skips shown"
+        else
+          @@failures += 1
+        end
+        ["test-all  #{results}\n\n", generate_test_all(s, results) ]
+      else
+        @@failures += 1
+        ["test-all   UNKNOWN see log\n\n", '']
+      end
+    else
+      @@failures += 1
+      ["test-all   log not found\n\n", '']
+    end
+  end
+
+  def log_spec(log)
+    # 3551 files, 26041 examples, 203539 expectations, 0 failures, 0 errors, 0 tagged
+    if log
+      if (s = File.binread(log)).length >= 144
+        results = s[-144,144][/^\d{4,} files, \d{4,} examples,[^\r\n]+/]
+        if results
+          @@failures += results[/expectations, (\d+) failures?/,1].to_i +
+            results[/failures?, (\d+) errors?/,1].to_i
+          "test-spec  #{results}\n"
+        else
+          @@failures += 1
+          "test-spec  Crashed? see log\n"
+        end
+      else
+        @@failures += 1
+        "test-spec  UNKNOWN see log\n"
+      end
+    else
+      @@failures += 1
+      "test-spec  log not found\n"
+    end
+  end
+
+  def log_mspec(log)
+    # 3551 files, 26041 examples, 203539 expectations, 0 failures, 0 errors, 0 tagged
+    if log
+      if (s = File.binread(log)).length >= 144
+        results = s[-144,144][/^\d{4,} files, \d{4,} examples,[^\r\n]+/]
+        if results
+          @@failures += results[/expectations, (\d+) failures?/,1].to_i
+          # results[/failures?, (\d+) errors?/,1].to_i
+          "mspec      #{results}\n\n"
+        else
+          @@failures += 1
+          "mspec      Crashed? see log\n\n"
+        end
+      else
+        @@failures += 1
+        "mspec      UNKNOWN see log\n\n"
+      end
+    else
+      @@failures += 1
+      "mspec      log not found\n\n"
+    end
+  end
+
+  def log_basic(log)
+    # test succeeded
+    if log
+      if (s = File.binread(log)).length >= 192
+        if /^test succeeded/ =~ s[-192,192]
+          "test-basic test succeeded\n"
+        else
+          @@failures += 1
+          "test-basic test failed\n"
+        end
+      else
+        @@failures += 1
+        "test-basic test UNKNOWN\n"
+      end
+    else
+      @@failures += 1
+      "test-basic log not found\n"
+    end
+  end
+
+  def log_btest(log)
+    # PASS all 1194 tests
+    if log
+      if (s = File.binread(log)).length >= 192
+        results = s[-192,192][/^PASS all \d+ tests/]
+        if results
+          "btest      #{results}\n"
+        else
+          @@failures += 1
+          "btest      FAILED\n"
+        end
+      else
+        @@failures += 1
+        "btest      UNKNOWN\n"
+      end
+    else
+      @@failures += 1
+      "btest      log not found\n"
+    end
+  end
+
+  def command_line
+    begin
+      bundle_v = "bundle version  #{`bundle version`}"
+    rescue
+      bundle_v = "bundle version  NOT FOUND!"
+      @@failures += 1
+    end
+
+    begin
+      rake_v   = "rake -V         #{`rake -V`}"
+    rescue
+      rake_v   = "rake -V         NOT FOUND!"
+      @@failures += 1
+    end
+    bundle_v + rake_v
+  end
+
+  def generate_test_all(s, results)
+    str = ''.dup
+
+    # Find and log parallel failures ands errors
+    str << errors_faults_parallel(s, 'Failure', 'F')
+    str << errors_faults_parallel(s, 'Error'  , 'E')
+
+    # Find and log final failures ands errors
+    str << faults_final(s)
+    str << errors_final(s)
+    str.empty? ? str : "#{RUBY_DESCRIPTION}\n#{results}\n\n#{str}"
+  end
+
+  def errors_faults_parallel(log, type, abbrev)
+    str = ''.dup
+    faults = []
+    faults = log.scan(/^( *\d+ )([A-Z][^#\n]+#test_[^\n]+? = #{abbrev})/)
+    unless  faults.empty?
+      t1 = faults.length
+      msg = t1 == 1 ? "#{type}" : "#{type}s"
+      str << "#{YELLOW}#{DASH * STRIPE_LEN} Parallel Tests - #{t1} #{msg}#{RESET}\n\n"
+      str << faults.sort_by { |f| f[1] }.map { |f| "#{f[0]}#{f[1]}" }.join("\n")
+      str << "\n\n"
+    end
+    str
+  end
+
+  def errors_final(log)
+    str = ''.dup
+    errors = []
+    log.scan(/^ *\d+\) Error:\n([^\n:]+):\n(.+?)\n([^\n]+?):(\d+):/m) { |test, msg, file, line|
+      file.sub!(/[\S]+?\/test\//, '')
+      errors << [test, file.strip, line.to_i, msg]
+    }
+    unless errors.empty?
+      hsh_errors = errors.group_by { |f| f[1] } # group by file
+
+      # Temp fix to remove TestJIT errors
+      if hsh_errors.key? 'ruby/test_jit.rb'
+        @@failures -= hsh_errors['ruby/test_jit.rb'].length
+      end
+
+      ary_errors = hsh_errors.sort
+      ary_errors.each { |file, errors| errors.sort_by! { |f| f[2] } }
+      ary_errors.each { |file, errors|
+        t1 = errors.length
+        msg = t1 == 1 ? "1 Error" : "#{t1} Errors"
+        wid = STRIPE_LEN + t1.to_s.length
+        str << "#{YELLOW}#{DASH * STRIPE_LEN} #{msg}#{RESET}\n#{' ' * wid}  #{file}\n\n"
+        errors.each { |test, file, line, msg|
+          str << "#{test.ljust wid+1} Line: #{line.to_s.ljust(5)}\n#{msg}\n\n"
+        }
+      }
+    end
+    str
+  end
+  
+  def faults_final(log)
+    str = ''.dup
+    faults = []
+    log.scan(/^ *\d+\) Failure:\n([^\n]+?) \[([^\n]+?):(\d+)\]:\n(.+?)\n\n/m) { |test, file, line, msg|
+      file.sub!(/[\S]+?\/test\//, '')
+      faults << [test, file, line.to_i, msg]
+    }
+    unless faults.empty?
+      hsh_faults = faults.group_by { |f| f[1] } # group by file
+
+      # Temp fix to remove TestJIT failures
+      if hsh_faults.key? 'ruby/test_jit.rb'
+        @@failures -= hsh_faults['ruby/test_jit.rb'].length
+      end
+
+      ary_faults = hsh_faults.sort
+      ary_faults.each { |file, faults| faults.sort_by! { |f| f[2] } }
+      ary_faults.each { |file, faults|
+        t1 = faults.length
+        msg = t1 == 1 ? "1 Failure" : "#{t1} Failures"
+        wid = STRIPE_LEN + t1.to_s.length
+        str << "#{YELLOW}#{DASH * STRIPE_LEN} #{msg}#{RESET}\n#{' ' * wid}  #{file}\n\n"
+        faults.each { |test, file, line, msg|
+          str << "#{test.ljust wid+1} Line: #{line.to_s.ljust(5)}\n#{msg}\n\n"
+        }
+      }
+    end
+    str
+  end
+  
+  def zip_save
+    puts "#{YELLOW}#{DASH * PUTS_LEN} Saving Artifacts#{RESET}"
+    push_artifacts
+    
+    fn_log = "test_logs_#{R_BRANCH}_#{RUBY_RELEASE_DATE}_#{RUBY_REVISION}.7z"
+
+    `attrib +r *.log`
+    `"#{ENV['7zip']}" a ./zips/#{fn_log} ./logs/*.log`
+    puts "Saved #{fn_log}"
+    puts
+    if IS_AV
+      `appveyor PushArtifact #{fn_log} -DeploymentName \"Build and test logs\"`
+    end
+  end
+  
+  def push_artifacts
+    require 'digest'
+    z_files = "#{D_INSTALL}/* ./trunk_msys2.ps1"
+
+    if @@failures == 0
+      r_suffix = R_BRANCH
+      r_msg    = ''
+    else
+      r_suffix = "#{R_BRANCH}_bad"
+      r_msg    = ' (bad)'
+    end
+    
+    `"#{ENV['7zip']}" a zips/ruby_#{r_suffix}.7z #{z_files}`
+    puts "Saved ruby_#{r_suffix}.7z\n"
+    if IS_AV
+      sha512 = Digest::SHA512.file("ruby_#{r_suffix}.7z").hexdigest
+      `appveyor AddMessage ruby_#{r_suffix}.7z_SHA512 -Details #{sha512}`
+      `appveyor PushArtifact ruby_#{r_suffix}.7z -DeploymentName \"Ruby Trunk Build#{r_msg}\"`
+    end
+  end
+  
+  end #  class << self
+end
+
+TestScript.run
