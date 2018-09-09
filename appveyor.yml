@@ -16,17 +16,15 @@ install:
   - git clone -q --depth=5 --no-tags --branch=master https://github.com/oneclick/rubyinstaller2.git    ./rubyinstaller2
   - git clone -q --depth=5 --no-tags --branch=master https://github.com/ConnorAtherton/rb-readline.git ./ruby_readline
   - git clone -q --depth=5 --no-tags --branch=trunk  https://github.com/ruby/ruby.git                  ./ruby
-  # below 3 lines just for special checkouts
-  #- cd \projects\ruby-loco\src\ruby
-  #- git checkout 72f88ebcc1
-  #- cd \projects\ruby-loco
+  - set PATH=C:\Ruby25-x64\bin;%PATH%
   
 build_script:
-  # builds, installs and tests
-  - ps: 1_build_install_64.ps1
+  # builds, installs
+  - ps: ./1_build_install_64.ps1
 
 test_script:
-  - ps: 2_test.ps1
+  # tests, generates logs and artifacts
+  - ps: ./2_test.ps1
 
 on_finish:
   - ren C:\Windows\System32\libssl-1_1-x64.dll_    libssl-1_1-x64.dll 
