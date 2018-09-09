@@ -142,7 +142,7 @@ Set-Variables
 Set-Variables-Local
 Set-Env
 
-<#
+
 Apply-Patches
 
 Create-Folders
@@ -158,9 +158,8 @@ cd $d_build
 $config_args = "--build=$chost --host=$chost --target=$chost --with-out-ext=pty,syslog"
 
 Run "sh -c `"../ruby/configure --disable-install-doc --prefix=/$install $config_args`""
-Run "$make -j $jobs update-unicode"
-Run "$make -j $jobs update-gems"
-Run "$make -j $jobs"
+Run "$make -j$jobs up"
+Run "$make -j$jobs"
 Strip
 Run "$make -f GNUMakefile DESTDIR=$d_repo_u install-nodoc"
 
@@ -171,5 +170,11 @@ ruby 1-2_post_install.rb $bits $install
 $env:path = "$d_install/bin;$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 
 ruby 1-3_post_install.rb $bits $install
-#>
+
+Push-Location $d_build/ext
+$build_files = "$d_zips/ext_build_files.7z"
+&$7z a $build_files **/Makefile **/*.h **/*.log **/*.mk 1> $null
+if ($is_av) { Push-AppveyorArtifact $build_files }
+Pop-Location
+
 Basic-Info

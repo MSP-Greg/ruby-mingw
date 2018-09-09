@@ -1,9 +1,9 @@
 /build/
-/git/
+/git
 /install/
-/ruby/
-/rubyinstaller2/
-/ruby_readline/
+/ruby
+/rubyinstaller2
+/ruby_readline
 
 *.txt
 *.log

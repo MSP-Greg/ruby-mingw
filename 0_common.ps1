@@ -3,11 +3,12 @@
 #————————————————————————————————————————————————————————————————— Set-Variables
 # set base variables, including MSYS2 location and bit related varis
 function Set-Variables {
-  if ($env:Appveyor -eq 'TRUE') {
+  if ($env:Appveyor -eq 'True') {
+    $script:is_av     = $true
     $script:d_msys2   = "C:/msys64"
     $script:d_git     =  "$env:ProgramFiles/Git"
     $script:7z        =  "$env:ProgramFiles/7-Zip/7z.exe"
-    $script:base_path = ("$env:ProgramFiles/Program Files/7-Zip;" + `
+    $script:base_path = ("$env:ProgramFiles/7-Zip;" + `
       "$env:ProgramFiles/AppVeyor/BuildAgent;$d_git/cmd;" + `
       "$env:SystemRoot/system32;$env:ProgramFiles;$env:SystemRoot").replace('\', '/')
   } else {
@@ -25,6 +26,7 @@ function Set-Variables {
   $script:d_logs    = "$d_repo/logs"
   $script:d_mingw   = "$d_msys2/mingw$bits"
   $script:d_ruby    = "$d_repo/ruby"
+  $script:d_zips    = "$d_repo/zips"
 
   $script:install   = "install"
   $script:d_install = "$d_repo/$install"

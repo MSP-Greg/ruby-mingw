@@ -27,20 +27,20 @@ module TestScript
 
   YELLOW = "\e[33m"
   RESET  = "\e[0m"
-  DASH   = '—'
-  IS_AV  = ( /true/i =~ ENV['APPVEYOR'] )     # Appveyor build vs local
-  
+  IS_AV  = /true/i =~ ENV['APPVEYOR']                  # Appveyor build vs local
+  DASH = IS_AV ? 151.chr : "\u2015".dup.force_encoding('UTF-8')
+
   STRIPE_LEN = 55
   PUTS_LEN   = 69
-  @@failures   = 0
-  
+  @@failures = 0
+
   class << self
-  
+
   def run
     logs = []
-    Dir.chdir( File.join __dir__, 'logs')
+    Dir.chdir File.join(__dir__, 'logs')
     logs = Dir["*.log"]
-   
+
     warnings_str = ''.dup
     results_str  = ''.dup
 
@@ -72,7 +72,7 @@ module TestScript
 
     Dir.chdir(__dir__)
     zip_save
-  
+
     if IS_AV
       `appveyor AddMessage -Message \"Summary - All Tests\" -Details \"#{results_str}\"`
 
@@ -287,7 +287,7 @@ module TestScript
     end
     str
   end
-  
+
   def faults_final(log)
     str = ''.dup
     faults = []
@@ -317,22 +317,22 @@ module TestScript
     end
     str
   end
-  
+
   def zip_save
     puts "#{YELLOW}#{DASH * PUTS_LEN} Saving Artifacts#{RESET}"
     push_artifacts
-    
+
     fn_log = "test_logs_#{R_BRANCH}_#{RUBY_RELEASE_DATE}_#{RUBY_REVISION}.7z"
 
     `attrib +r *.log`
-    `"#{ENV['7zip']}" a ./zips/#{fn_log} ./logs/*.log`
+    `7z.exe a ./zips/#{fn_log} ./logs/*.log`
+    if IS_AV
+      `appveyor PushArtifact ./zips/#{fn_log} -DeploymentName \"Build and test logs\"`
+    end
     puts "Saved #{fn_log}"
     puts
-    if IS_AV
-      `appveyor PushArtifact #{fn_log} -DeploymentName \"Build and test logs\"`
-    end
   end
-  
+
   def push_artifacts
     require 'digest'
     z_files = "#{D_INSTALL}/* ./trunk_msys2.ps1"
@@ -344,16 +344,16 @@ module TestScript
       r_suffix = "#{R_BRANCH}_bad"
       r_msg    = ' (bad)'
     end
-    
-    `"#{ENV['7zip']}" a zips/ruby_#{r_suffix}.7z #{z_files}`
-    puts "Saved ruby_#{r_suffix}.7z\n"
+
+    `7z.exe a ./zips/ruby_#{r_suffix}.7z #{z_files}`
+    sha512 = Digest::SHA512.file("#{D_ZIPS}/ruby_#{r_suffix}.7z").hexdigest
     if IS_AV
-      sha512 = Digest::SHA512.file("ruby_#{r_suffix}.7z").hexdigest
       `appveyor AddMessage ruby_#{r_suffix}.7z_SHA512 -Details #{sha512}`
-      `appveyor PushArtifact ruby_#{r_suffix}.7z -DeploymentName \"Ruby Trunk Build#{r_msg}\"`
+      `appveyor PushArtifact ./zips/ruby_#{r_suffix}.7z -DeploymentName \"Ruby Trunk Build#{r_msg}\"`
     end
+    puts "Saved ruby_#{r_suffix}.7z"
   end
-  
+
   end #  class << self
 end
 

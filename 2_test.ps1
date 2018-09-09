@@ -23,12 +23,30 @@ function Run-Proc {
   $timer = [system.diagnostics.stopwatch]::StartNew()
   $ctr = 0
   $interval = [int32](2.5 * $TimeLimit)
-
+  $is_running = $true
   Do {
     if ($timer.Elapsed.TotalSeconds -gt $TimeLimit) {
-      $proc.Kill()
-      Write-Host "`nProcess Killed!" -ForegroundColor $fc
-      break
+      if ($is_running) {
+        $id = $proc.id
+        While ($1_proc = $(Get-CimInstance -ClassName Win32_Process |
+          where {$_.ParentProcessId -eq $id} )) {
+          $1_id = $1_proc.ProcessId
+          While ($2_proc = $(Get-CimInstance -ClassName Win32_Process |
+            where {$_.ParentProcessId -eq $1_id} )) {
+            $2_id = $2_proc.ProcessId
+            While ($3_proc = $(Get-CimInstance -ClassName Win32_Process |
+              where {$_.ParentProcessId -eq $2_id} )) {
+              $3_id = $3_proc.ProcessId
+              Stop-Process -Id $3_id -Force
+            }
+            if (Get-Process -pid $2_id -ErrorAction SilentlyContinue) { Stop-Process -Id $2_id -Force }
+          }
+          if (Get-Process -pid $1_id -ErrorAction SilentlyContinue) { Stop-Process -Id $1_id -Force }
+        }
+        if (Get-Process -pid $id -ErrorAction SilentlyContinue) { Stop-Process -Id $id -Force }
+        $is_running = $false
+        Write-Host "`nProcess Killed!" -ForegroundColor $fc
+      }
     } else {
       $ctr += 1
       Write-Host '.' -NoNewLine
@@ -36,11 +54,13 @@ function Run-Proc {
     }
     Start-Sleep -Milliseconds $interval
   } Until ( $proc.HasExited )
+
   $test_fails += if ($LastExitCode) { $LastExitCode } else { 0 }
   Write-Host "`nTotal Time " $timer.Elapsed.TotalSeconds
+  Write-Host proc.HasExited $proc.HasExited $proc.id
   $timer.Stop()
   $timer = $null
-  $proc = $null
+  $proc  = $null
 }
 
 #————————————————————————————————————————————————————————————————— start testing
@@ -59,7 +79,7 @@ $env:GIT  = "$d_repo/git/cmd/git.exe"
 
 # Set path to only include ruby install folder
 $env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
-<#
+
 #————————————————————————————————————————————————————————————————————— basictest
 # needs miniruby at root (build)
 $env:RUBY = "$d_install/bin/ruby.exe"
@@ -81,7 +101,7 @@ Run-Proc `
   -Title  "btest" `
   -Dir    "$d_ruby/bootstraptest" `
   -TimeLimit 100
-  
+
 #—————————————————————————————————————————————————————————————————————— test-all
 $env:RUBY_FORCE_TEST_JIT = '1'
 
@@ -97,13 +117,10 @@ Run-Proc `
   -Title  "test-all" `
   -Dir    "$d_build" `
   -TimeLimit 1500
-#>
+
 #—————————————————————————————————————————————————————————————————————————— spec
 $env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
 (Get-Item "$d_ruby/spec/ruby").Attributes = 'Normal'
-
-#  -e_args "-rdevkit --disable-gems ../mspec/bin/mspec run -Z -O -j" `
-#  -e_args "-rdevkit --disable-gems ../mspec/bin/mspec -j" `
 
 Run-Proc `
   -exe    "ruby.exe" `
@@ -114,7 +131,10 @@ Run-Proc `
   -Dir    "$d_ruby/spec/ruby" `
   -TimeLimit 240 `
 
-Get-ChildItem -Path $d_logs -Include *.log -Recurse | where {$_.length -eq 0} | Remove-Item
+$zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse | where {$_.length -eq 0}
+
+foreach ($file in $zero_length_files) { Remove-Item -Path $file -Force }
 
 $env:path = "$d_install/bin;$d_repo/git/cmd;$base_path"
 ruby 2-1_test_script.rb
+if ($LastExitCode -and $LastExitCode -ne 0) { exit 1 }

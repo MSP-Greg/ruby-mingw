@@ -4,4 +4,4 @@ $global:7z        =  "$env:ProgramFiles/7-Zip/7z.exe".replace('\', '/')
 $global:base_path = ("$env:ProgramFiles/7-Zip;$d_git/cmd;" + `
   "$env:SystemRoot/system32;$env:ProgramFiles;$env:SystemRoot").replace('\', '/')
 
-$env:7zip = $7z
+$env:7zip = `"$7z`"
