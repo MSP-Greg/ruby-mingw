@@ -1,7 +1,7 @@
-# Code by MSP-Greg
-
-# Appveyor encoding is odd, as it changes.  Maybe caused by appveyor.yml layout?
-$PSDefaultParameterValues['*:Encoding'] = 'utf8'
+<# Code by MSP-Greg
+Sets variables used in 1_0_build_install_64.ps1 and 2_0_test.ps1
+If running locally, use ./local.ps1
+#>
 
 #————————————————————————————————————————————————————————————————— Set-Variables
 # set base variables, including MSYS2 location and bit related varis
@@ -19,6 +19,7 @@ function Set-Variables {
   }
 
   $script:d_repo   = $PSScriptRoot.replace('\', '/')
+  # below is a *nix style path, ie, 'C:\' becomes '/c/'
   $script:d_repo_u = if ($d_repo -cmatch "\A[A-Z]:") {
     $t = $d_repo.replace(':', '')
     $t = '/' + $t.substring(0,1).ToLower() + $t.substring(1, $t.length-1)

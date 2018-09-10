@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 # encoding: UTF-8
 
+# Code by MSP-Greg
+# Parses test logs to determine if build is good, creates Appveyor messages and
+# artifacts
+
 module TestScript
   if ARGV.length == 0
     ARCH = '64'
@@ -333,12 +337,12 @@ module TestScript
     puts "#{YELLOW}#{DASH * PUTS_LEN} Saving Artifacts#{RESET}"
     push_artifacts
 
-    fn_log = "test_logs_#{R_BRANCH}_#{RUBY_RELEASE_DATE}_#{RUBY_REVISION}.7z"
+    fn_log = "zlogs_#{R_BRANCH}_#{RUBY_RELEASE_DATE}_#{RUBY_REVISION}.7z"
 
     `attrib +r *.log`
     `7z.exe a ./zips/#{fn_log} ./logs/*.log`
     if IS_AV
-      `appveyor PushArtifact ./zips/#{fn_log} -DeploymentName \"Build and test logs\"`
+      `appveyor PushArtifact ./zips/#{fn_log} -DeploymentName \"Test logs\"`
     end
     puts "Saved #{fn_log}"
     puts

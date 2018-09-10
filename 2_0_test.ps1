@@ -1,8 +1,11 @@
 <# Code by MSP-Greg
+Runs Ruby tests with STDOUT & STDERR sent to two files, allows setting a max
+time, so if a test freezes, it can be stopped.
 #>
 
 #————————————————————————————————————————————————————————————————————— Kill-Proc
-# Kills a process and loops thru child & granchild processes
+# Kills a process by first looping thru child & grandchild processes and
+# stopping them, then stops passed process
 function Kill-Proc($proc) {
   $pid = $proc.id
   While ($1_proc = $(Get-CimInstance -ClassName Win32_Process |
@@ -36,7 +39,8 @@ function Kill-Proc($proc) {
 }
 
 #—————————————————————————————————————————————————————————————————————— Run-Proc
-# Runs a process with a timeout setting
+# Runs a process with a timeout setting, sets STDOUT & STDERR to files
+# Outputs running dots to console
 function Run-Proc {
   Param( [string]$StdOut , [string]$exe    , [string]$Title ,
          [string]$StdErr , [string]$e_args , [string]$Dir   , [int]$TimeLimit
@@ -48,7 +52,7 @@ function Run-Proc {
     Write-Host "Need TimeLimit!"
     exit
   } else {
-    $msg = "Time Limit - {0,8:n2} seconds" -f @($TimeLimit)
+    $msg = "Time Limit {0,8:n2} seconds" -f @($TimeLimit)
     Write-Host $msg
   }
 
@@ -60,7 +64,8 @@ function Run-Proc {
 
   $timer = [system.diagnostics.stopwatch]::StartNew()
   $ctr = 0
-  $interval = [int32](2.5 * $TimeLimit)
+  # 20 => ~400, 1600 => ~4200
+  $interval_ms = [int32](([math]::log10($TimeLimit) - 1.101) * 2000)
   $is_running = $true
   Do {
     if ($timer.Elapsed.TotalSeconds -gt $TimeLimit) {
@@ -70,11 +75,11 @@ function Run-Proc {
       Write-Host '.' -NoNewLine
       if ($ctr % 80 -eq 0) { Write-Host }
     }
-    Start-Sleep -Milliseconds $interval
+    Start-Sleep -Milliseconds $interval_ms
   } Until ( $proc.HasExited )
 
   $test_fails += if ($LastExitCode) { $LastExitCode } else { 0 }
-  $msg = "`nTotal Time - {0,8:n2}" -f @($timer.Elapsed.TotalSeconds)
+  $msg = "`nTotal Time {0,8:n2}" -f @($timer.Elapsed.TotalSeconds)
   Write-Host $msg
   $timer.Stop()
   $timer = $null
@@ -125,7 +130,8 @@ $env:RUBY_FORCE_TEST_JIT = '1'
 
 $env:path = "$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 
-$args = "test-all TESTOPTS=`"-j $jobs -a --retry --job-status=normal --show-skip --subprocess-timeout-scale=1.5`""
+$args = "test-all TESTOPTS=`"-j $jobs -a --retry --job-status=normal " + `
+        "--show-skip --subprocess-timeout-scale=1.5`""
 
 Run-Proc `
   -exe    $make `
@@ -162,20 +168,25 @@ Run-Proc `
   -Dir    "$d_ruby/spec/ruby" `
   -TimeLimit 240 `
 
-$zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse | where {$_.length -eq 0}
+$zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse |
+  where {$_.length -eq 0}
 
 foreach ($file in $zero_length_files) { Remove-Item -Path $file -Force }
 
 $env:path = "$d_install/bin;$d_repo/git/cmd;$base_path"
 
+# seems to be needed for proper dash encoding
+[Console]::OutputEncoding = New-Object -typename System.Text.UTF8Encoding
+
 # used in 2_1_test_script.rb
 $env:PS_ENC = [Console]::OutputEncoding.HeaderName
 
 ruby 2_1_test_script.rb
-if ($LastExitCode -and $LastExitCode -ne 0) { exit 1 }
+$exit = ($LastExitCode -and $LastExitCode -ne 0)
 
 Write-Host "`n$($dash * 8) Encoding $($dash * 8)" -ForegroundColor $fc
 Write-Host "PS Console  $([Console]::OutputEncoding.HeaderName)"
 Write-Host "PS Output   $($OutputEncoding.HeaderName)"
 iex "ruby.exe -e `"['external','filesystem','internal','locale'].each { |e| puts e.ljust(12) + Encoding.find(e).to_s }`""
 Write-Host ''
+if ($exit) { exit 1 }

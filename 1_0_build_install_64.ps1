@@ -53,12 +53,14 @@ function Create-Folders {
 
   # create (or clean) build & install
   if (Test-Path   -Path ./build    -PathType Container ) {
-    Get-ChildItem -Path ./build    -Recurse -Directory -Force | foreach {$_.Attributes = 'Normal'}
+    Get-ChildItem -Path ./build    -Recurse -Directory -Force |
+      foreach {$_.Attributes = 'Normal'}
     Remove-Item   -Path ./build    -Recurse
   };New-Item      -Path ./build    -ItemType Directory 1> $null
 
   if (Test-Path   -Path ./$install -PathType Container ) {
-    Get-ChildItem -Path ./$install -Recurse -Directory -Force | foreach {$_.Attributes = 'Normal'}
+    Get-ChildItem -Path ./$install -Recurse -Directory -Force |
+      foreach {$_.Attributes = 'Normal'}
     Remove-Item   -Path ./$install -Recurse
   };New-Item      -Path ./$install -ItemType Directory 1> $null
 
@@ -172,8 +174,10 @@ Run "$make -j$jobs update-gems"
 
 # below sets some directories to normal in case they're set to read-only
 (Get-Item $d_ruby ).Attributes = 'Normal'
-Get-ChildItem -Directory -Path  $d_ruby      -Force -Recurse | foreach {$_.Attributes = 'Normal'}
-Get-ChildItem -Directory -Path "$d_ruby/enc" -Force -Recurse | foreach {$_.Attributes = 'Normal'}
+Get-ChildItem -Directory -Path  $d_ruby      -Force -Recurse |
+  foreach {$_.Attributes = 'Normal'}
+Get-ChildItem -Directory -Path "$d_ruby/enc" -Force -Recurse |
+  foreach {$_.Attributes = 'Normal'}
 (Get-Item $d_build).Attributes = 'Normal'
 
 Run "$make -j$jobs 2>&1" $true
@@ -197,5 +201,5 @@ Basic-Info
 Push-Location $d_build/ext
 $build_files = "$d_zips/ext_build_files.7z"
 &$7z a $build_files **/Makefile **/*.h **/*.log **/*.mk 1> $null
-if ($is_av) { Push-AppveyorArtifact $build_files }
+if ($is_av) { Push-AppveyorArtifact $build_files -DeploymentName "Ext build files" }
 Pop-Location

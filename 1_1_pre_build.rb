@@ -1,6 +1,8 @@
 # frozen_string_literal: true
+# encoding: UTF-8
 
 # Code by MSP-Greg
+# Reads version.h and adds message to Appveyor build, updates revision.h
 
 module PreBuild
 
@@ -55,20 +57,6 @@ class << self
         end
         puts title
       }
-    }
-  end
-
-  # Reads patch dir, applies patches
-  def apply_patches
-    Dir.chdir(File.join(__dir__, 'ruby')) { |dir|
-      # collect patches and apply
-      patches = Dir["#{__dir__}/patches/{[^_],#{ARCH}/[^_]}*.patch"]
-      patches.sort_by! { |p| File.basename(p) }
-      patches.each { |p|
-        puts "#{YELLOW}#{'—' * 55} #{File.basename(p)}#{RESET}"
-        puts `patch -p1 -N --no-backup-if-mismatch -i #{p}`
-      }
-      puts ''  # just for formatting of prepare.log
     }
   end
 
