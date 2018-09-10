@@ -20,6 +20,7 @@ function Apply-Patches {
     patch.exe -p1 -N --no-backup-if-mismatch -i "$d_repo/patches/$p"
   }
   Pop-Location
+  Write-Host ''
 }
 
 #———————————————————————————————————————————————————————————————————— Basic Info
@@ -49,20 +50,21 @@ function Check-Exit($msg, $pop) {
 function Create-Folders {
   # reset to read/write
   (Get-Item $d_repo).Attributes = 'Normal'
-  Get-ChildItem -Directory | foreach {$_.Attributes = 'Normal'}
 
   # create (or clean) build & install
-  if (Test-Path -Path ./build    -PathType Container ) {
-    Remove-Item -Path ./build    -recurse
-  } New-Item    -Path ./build    -ItemType Directory 1> $null
+  if (Test-Path   -Path ./build    -PathType Container ) {
+    Get-ChildItem -Path ./build    -Recurse -Directory -Force | foreach {$_.Attributes = 'Normal'}
+    Remove-Item   -Path ./build    -Recurse
+  };New-Item      -Path ./build    -ItemType Directory 1> $null
 
-  if (Test-Path -Path ./$install -PathType Container ) {
-    Remove-Item -Path ./$install -recurse
-  } New-Item    -Path ./$install -ItemType Directory 1> $null
+  if (Test-Path   -Path ./$install -PathType Container ) {
+    Get-ChildItem -Path ./$install -Recurse -Directory -Force | foreach {$_.Attributes = 'Normal'}
+    Remove-Item   -Path ./$install -Recurse
+  };New-Item      -Path ./$install -ItemType Directory 1> $null
 
-  if (Test-Path -Path ./logs     -PathType Container ) {
-    Remove-Item -Path ./logs     -recurse
-  } New-Item    -Path ./logs     -ItemType Directory 1> $null
+  if (Test-Path   -Path ./logs     -PathType Container ) {
+    Remove-Item   -Path ./logs     -Recurse
+  };New-Item      -Path ./logs     -ItemType Directory 1> $null
 
   # create git symlink, which RubyGems seems to want
   if (!(Test-Path -Path ./git -PathType Container )) {
@@ -73,9 +75,10 @@ function Create-Folders {
 
 #——————————————————————————————————————————————————————————————————————————— Run
 # Run a command and check for error
-function Run($exec) {
-  Write-Line $exec
-  iex $exec
+function Run($exec, $silent = $false) {
+  Write-Line "$exec"
+  if ($silent) { iex $exec -ErrorAction SilentlyContinue }
+  else         { iex $exec }
   Check-Exit $exec
 }
 
@@ -148,7 +151,6 @@ Set-Variables
 Set-Variables-Local
 Set-Env
 
-
 Apply-Patches
 
 Create-Folders
@@ -164,21 +166,34 @@ cd $d_build
 $config_args = "--build=$chost --host=$chost --target=$chost --with-out-ext=pty,syslog"
 
 Run "sh -c `"../ruby/configure --disable-install-doc --prefix=/$install $config_args`""
-Run "$make -j$jobs up"
-Run "$make -j$jobs"
+
+Run "$make -j$jobs update-unicode"
+Run "$make -j$jobs update-gems"
+
+# below sets some directories to normal in case they're set to read-only
+(Get-Item $d_ruby ).Attributes = 'Normal'
+Get-ChildItem -Directory -Path  $d_ruby      -Force -Recurse | foreach {$_.Attributes = 'Normal'}
+Get-ChildItem -Directory -Path "$d_ruby/enc" -Force -Recurse | foreach {$_.Attributes = 'Normal'}
+(Get-Item $d_build).Attributes = 'Normal'
+
+Run "$make -j$jobs 2>&1" $true
+
 Strip
 Run "$make -f GNUMakefile DESTDIR=$d_repo_u install-nodoc"
 
 cd $d_repo
 
+# run with old ruby
 ruby 1_2_post_install.rb $bits $install
 
 $env:path = "$d_install/bin;$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 
+# run with new ruby (gem install, exc)
 ruby 1_3_post_install.rb $bits $install
 
 Basic-Info
 
+# save extension build files
 Push-Location $d_build/ext
 $build_files = "$d_zips/ext_build_files.7z"
 &$7z a $build_files **/Makefile **/*.h **/*.log **/*.mk 1> $null

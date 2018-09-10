@@ -1,5 +1,8 @@
 # Code by MSP-Greg
 
+# Appveyor encoding is odd, as it changes.  Maybe caused by appveyor.yml layout?
+$PSDefaultParameterValues['*:Encoding'] = 'utf8'
+
 #————————————————————————————————————————————————————————————————— Set-Variables
 # set base variables, including MSYS2 location and bit related varis
 function Set-Variables {
@@ -34,6 +37,7 @@ function Set-Variables {
   $script:d_install = "$d_repo/$install"
 
   $script:make = "mingw32-make.exe"
+  # $script:make = "make"
 
   $script:jobs = $env:NUMBER_OF_PROCESSORS
   $script:fc   = "Yellow"

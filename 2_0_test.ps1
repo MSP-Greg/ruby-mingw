@@ -1,3 +1,40 @@
+<# Code by MSP-Greg
+#>
+
+#————————————————————————————————————————————————————————————————————— Kill-Proc
+# Kills a process and loops thru child & granchild processes
+function Kill-Proc($proc) {
+  $pid = $proc.id
+  While ($1_proc = $(Get-CimInstance -ClassName Win32_Process |
+    where {$_.ParentProcessId -eq $pid} )) {
+    $1_id = $1_proc.ProcessId
+    While ($2_proc = $(Get-CimInstance -ClassName Win32_Process |
+      where {$_.ParentProcessId -eq $1_id} )) {
+      $2_id = $2_proc.ProcessId
+      While ($3_proc = $(Get-CimInstance -ClassName Win32_Process |
+        where {$_.ParentProcessId -eq $2_id} )) {
+        $3_id = $3_proc.ProcessId
+        Write-Host "Stop-Process " + $3_proc.name
+        Stop-Process -Id $3_id -Force
+      }
+      if (Get-Process -pid $2_id -ErrorAction SilentlyContinue) {
+         Stop-Process -Id  $2_id -Force
+        Write-Host "Stop-Process " + $2_proc.name
+      }
+    }
+    if (Get-Process -pid $1_id -ErrorAction SilentlyContinue) {
+       Stop-Process -Id  $1_id -Force
+      Write-Host "Stop-Process " + $1_proc.name
+    }
+  }
+  if (Get-Process -pid $pid -ErrorAction SilentlyContinue) {
+     Stop-Process -Id  $pid -Force
+    Write-Host "Stop-Process " + $proc.name
+  }
+  $is_running = $false
+  Write-Host "`nProcess Killed!" -ForegroundColor $fc
+}
+
 #—————————————————————————————————————————————————————————————————————— Run-Proc
 # Runs a process with a timeout setting
 function Run-Proc {
@@ -27,27 +64,7 @@ function Run-Proc {
   $is_running = $true
   Do {
     if ($timer.Elapsed.TotalSeconds -gt $TimeLimit) {
-      if ($is_running) {
-        $id = $proc.id
-        While ($1_proc = $(Get-CimInstance -ClassName Win32_Process |
-          where {$_.ParentProcessId -eq $id} )) {
-          $1_id = $1_proc.ProcessId
-          While ($2_proc = $(Get-CimInstance -ClassName Win32_Process |
-            where {$_.ParentProcessId -eq $1_id} )) {
-            $2_id = $2_proc.ProcessId
-            While ($3_proc = $(Get-CimInstance -ClassName Win32_Process |
-              where {$_.ParentProcessId -eq $2_id} )) {
-              $3_id = $3_proc.ProcessId
-              Stop-Process -Id $3_id -Force
-            }
-            if (Get-Process -pid $2_id -ErrorAction SilentlyContinue) { Stop-Process -Id $2_id -Force }
-          }
-          if (Get-Process -pid $1_id -ErrorAction SilentlyContinue) { Stop-Process -Id $1_id -Force }
-        }
-        if (Get-Process -pid $id -ErrorAction SilentlyContinue) { Stop-Process -Id $id -Force }
-        $is_running = $false
-        Write-Host "`nProcess Killed!" -ForegroundColor $fc
-      }
+      if ($is_running) { Kill-Proc $proc }
     } else {
       $ctr += 1
       Write-Host '.' -NoNewLine
@@ -116,19 +133,32 @@ Run-Proc `
   -StdOut "test_all.log" `
   -StdErr "test_all_err.log" `
   -Title  "test-all" `
-  -Dir    "$d_build" `
-  -TimeLimit 1500
+  -Dir    $d_build `
+  -TimeLimit 1600
 
 #—————————————————————————————————————————————————————————————————————————— spec
-$env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
-(Get-Item "$d_ruby/spec/ruby").Attributes = 'Normal'
+$env:path = "$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
+(Get-Item $d_build).Attributes = 'Normal'
+
+Run-Proc `
+  -exe    $make `
+  -e_args "test-spec `"MSPECOPT=-j`"" `
+  -StdOut "test_spec.log" `
+  -StdErr "test_spec_err.log" `
+  -Title  "test-spec" `
+  -Dir    $d_build `
+  -TimeLimit 240 `
+  
+#————————————————————————————————————————————————————————————————————————— mspec
+$env:path = "$d_install/bin;$d_msys2/usr/bin;$d_mingw/bin;$base_path"
+(Get-Item $d_ruby/spec).Attributes = 'Normal'
 
 Run-Proc `
   -exe    "ruby.exe" `
   -e_args "-rdevkit --disable-gems ../mspec/bin/mspec -j" `
-  -StdOut "test_spec.log" `
-  -StdErr "test_spec_err.log" `
-  -Title  "test-spec" `
+  -StdOut "test_mspec.log" `
+  -StdErr "test_mspec_err.log" `
+  -Title  "test-mspec" `
   -Dir    "$d_ruby/spec/ruby" `
   -TimeLimit 240 `
 
@@ -137,8 +167,15 @@ $zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse | where
 foreach ($file in $zero_length_files) { Remove-Item -Path $file -Force }
 
 $env:path = "$d_install/bin;$d_repo/git/cmd;$base_path"
+
+# used in 2_1_test_script.rb
 $env:PS_ENC = [Console]::OutputEncoding.HeaderName
 
-Write-Host "[Console]::OutputEncoding.HeaderName $env:PS_ENC"
 ruby 2_1_test_script.rb
 if ($LastExitCode -and $LastExitCode -ne 0) { exit 1 }
+
+Write-Host "`n$($dash * 8) Encoding $($dash * 8)" -ForegroundColor $fc
+Write-Host "PS Console  $([Console]::OutputEncoding.HeaderName)"
+Write-Host "PS Output   $($OutputEncoding.HeaderName)"
+iex "ruby.exe -e `"['external','filesystem','internal','locale'].each { |e| puts e.ljust(12) + Encoding.find(e).to_s }`""
+Write-Host ''

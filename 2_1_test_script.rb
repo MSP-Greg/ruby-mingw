@@ -29,12 +29,13 @@ module TestScript
   RESET  = "\e[0m"
   IS_AV  = /true/i =~ ENV['APPVEYOR']                  # Appveyor build vs local
 
-
   DASH = case ENV['PS_ENC']
     when 'utf-8'
       "\u2015".dup.force_encoding 'utf-8'
     when 'Windows-1252'
       151.chr
+    when 'IBM437'
+      '—'
     else
       "\u2015".dup.force_encoding 'utf-8'
     end
@@ -56,6 +57,7 @@ module TestScript
     t1, sum_test_all = log_test_all( logs.find { |l| l == 'test_all.log' } )
     results_str << t1
     results_str << log_spec(  logs.find { |l| l == 'test_spec.log'          } )
+    results_str << log_mspec( logs.find { |l| l == 'test_mspec.log'         } )
     results_str << log_basic( logs.find { |l| l == 'test_basic.log'         } )
     results_str << log_btest( logs.find { |l| l == 'test_bootstrap_err.log' } )
 
@@ -365,5 +367,4 @@ module TestScript
 
   end #  class << self
 end
-
 TestScript.run
