@@ -7,7 +7,7 @@ init:
   - set SSL_CERT_FILE=
   - set OPENSSL_CONF=
   - set OPENSSL_DIR=
-  - ren C:\Windows\System32\libssl-1_1-x64.dll    libssl-1_1-x64.dll_ 
+  - ren C:\Windows\System32\libssl-1_1-x64.dll    libssl-1_1-x64.dll_
   - ren C:\Windows\System32\libcrypto-1_1-x64.dll libcrypto-1_1-x64.dll_
 
 install:
@@ -17,15 +17,15 @@ install:
   - git clone -q --depth=5 --no-tags --branch=master https://github.com/ConnorAtherton/rb-readline.git ./ruby_readline
   - git clone -q --depth=5 --no-tags --branch=trunk  https://github.com/ruby/ruby.git                  ./ruby
   - set PATH=C:\Ruby25-x64\bin;%PATH%
-  
+
 build_script:
   # builds, installs
-  - ps: ./1_build_install_64.ps1
+  - ps: ./1_0_build_install_64.ps1
 
 test_script:
   # tests, generates logs and artifacts
-  - ps: ./2_test.ps1
+  - ps: ./2_0_test.ps1
 
 on_finish:
-  - ren C:\Windows\System32\libssl-1_1-x64.dll_    libssl-1_1-x64.dll 
+  - ren C:\Windows\System32\libssl-1_1-x64.dll_    libssl-1_1-x64.dll
   - ren C:\Windows\System32\libcrypto-1_1-x64.dll_ libcrypto-1_1-x64.dll

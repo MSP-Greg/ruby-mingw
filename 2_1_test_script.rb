@@ -28,7 +28,16 @@ module TestScript
   YELLOW = "\e[33m"
   RESET  = "\e[0m"
   IS_AV  = /true/i =~ ENV['APPVEYOR']                  # Appveyor build vs local
-  DASH = IS_AV ? 151.chr : "\u2015".dup.force_encoding('UTF-8')
+
+
+  DASH = case ENV['PS_ENC']
+    when 'utf-8'
+      "\u2015".dup.force_encoding 'utf-8'
+    when 'Windows-1252'
+      151.chr
+    else
+      "\u2015".dup.force_encoding 'utf-8'
+    end
 
   STRIPE_LEN = 55
   PUTS_LEN   = 69

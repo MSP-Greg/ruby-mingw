@@ -105,13 +105,12 @@ function Strip {
 # set base variables, including MSYS2 location and bit related varis
 function Set-Variables-Local {
   if ($bits -eq 32) {
-         $script:m_arch = "i686"   ; $t_m_pre = "i686"   }
-  else { $script:m_arch = "x86-64" ; $t_m_pre = "x86_64" }
+         $script:march = "i686"   ; $script:carch = "i686"   }
+  else { $script:march = "x86-64" ; $script:carch = "x86_64" }
 
   $script:ruby_path = $(ruby -e "puts RbConfig::CONFIG['bindir']").trim().replace('\', '/')
 
-  $script:mingw   = "mingw$bits"
-  $script:chost   = "$t_m_pre-w64-mingw32"
+  $script:chost   = "$carch-w64-mingw32"
 
   $script:jobs    = $env:NUMBER_OF_PROCESSORS
   $script:fc      = "Yellow"
@@ -125,10 +124,17 @@ function Set-Env {
   $env:path = "$ruby_path;$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 
   $env:D_MSYS2  = $d_msys2
-  $env:CFLAGS   = "-march=$m_arch -mtune=generic -O3 -pipe"
-  $env:CXXFLAGS = "-march=$m_arch -mtune=generic -O3 -pipe"
+  $env:CFLAGS   = "-march=$march -mtune=generic -O3 -pipe"
+  $env:CXXFLAGS = "-march=$march -mtune=generic -O3 -pipe"
   $env:CPPFLAGS = "-D_FORTIFY_SOURCE=2 -D__USE_MINGW_ANSI_STDIO=1 -DFD_SETSIZE=2048"
   $env:LDFLAGS  = "-pipe"
+  # not sure if below are needed, maybe jst for makepkg scripts.  See
+  # https://github.com/Alexpux/MSYS2-packages/blob/master/pacman/makepkg_mingw64.conf
+  # https://github.com/Alexpux/MSYS2-packages/blob/master/pacman/makepkg_mingw32.conf
+  $env:CARCH        = $carch
+  $env:CHOST        = $chost
+  $env:MINGW_CHOST  = $chost
+  $env:MINGW_PREFIX = "/$mingw"
 }
 
 #——————————————————————————————————————————————————————————————————— start build
@@ -148,7 +154,7 @@ Apply-Patches
 Create-Folders
 
 cd $d_repo
-ruby 1-1_pre_build.rb 64
+ruby 1_1_pre_build.rb 64
 
 cd $d_ruby
 Run "sh -c `"autoreconf -fi`""
@@ -165,16 +171,16 @@ Run "$make -f GNUMakefile DESTDIR=$d_repo_u install-nodoc"
 
 cd $d_repo
 
-ruby 1-2_post_install.rb $bits $install
+ruby 1_2_post_install.rb $bits $install
 
 $env:path = "$d_install/bin;$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 
-ruby 1-3_post_install.rb $bits $install
+ruby 1_3_post_install.rb $bits $install
+
+Basic-Info
 
 Push-Location $d_build/ext
 $build_files = "$d_zips/ext_build_files.7z"
 &$7z a $build_files **/Makefile **/*.h **/*.log **/*.mk 1> $null
 if ($is_av) { Push-AppveyorArtifact $build_files }
 Pop-Location
-
-Basic-Info

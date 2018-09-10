@@ -22,9 +22,11 @@ function Set-Variables {
     $t
   } else { $d_repo }
 
+  $script:mingw   = "mingw$bits"
+
   $script:d_build   = "$d_repo/build"
   $script:d_logs    = "$d_repo/logs"
-  $script:d_mingw   = "$d_msys2/mingw$bits"
+  $script:d_mingw   = "$d_msys2/$mingw"
   $script:d_ruby    = "$d_repo/ruby"
   $script:d_zips    = "$d_repo/zips"
 
@@ -39,6 +41,7 @@ function Set-Variables {
   $script:dl   = $($dash * 80)
 
   $env:GIT     = "$d_repo/git/cmd/git.exe"
+  $env:MSYS_NO_PATHCONV = '1'
 }
 
 #———————————————————————————————————————————————————————————————————— Write-Line

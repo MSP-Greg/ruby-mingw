@@ -1,7 +1,7 @@
 #—————————————————————————————————————————————————————————————————————— Run-Proc
 # Runs a process with a timeout setting
 function Run-Proc {
-  Param( [string]$StdOut , [string]$exe    , [string]$Title , 
+  Param( [string]$StdOut , [string]$exe    , [string]$Title ,
          [string]$StdErr , [string]$e_args , [string]$Dir   , [int]$TimeLimit
   )
 
@@ -11,9 +11,10 @@ function Run-Proc {
     Write-Host "Need TimeLimit!"
     exit
   } else {
-    Write-Host "Time limit - $TimeLimit seconds"
+    $msg = "Time Limit - {0,8:n2} seconds" -f @($TimeLimit)
+    Write-Host $msg
   }
-  
+
   $proc = Start-Process $exe -ArgumentList $e_args `
     -RedirectStandardOutput $d_logs/$StdOut `
     -RedirectStandardError  $d_logs/$StdErr `
@@ -56,8 +57,8 @@ function Run-Proc {
   } Until ( $proc.HasExited )
 
   $test_fails += if ($LastExitCode) { $LastExitCode } else { 0 }
-  Write-Host "`nTotal Time " $timer.Elapsed.TotalSeconds
-  Write-Host proc.HasExited $proc.HasExited $proc.id
+  $msg = "`nTotal Time - {0,8:n2}" -f @($timer.Elapsed.TotalSeconds)
+  Write-Host $msg
   $timer.Stop()
   $timer = $null
   $proc  = $null
@@ -136,5 +137,8 @@ $zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse | where
 foreach ($file in $zero_length_files) { Remove-Item -Path $file -Force }
 
 $env:path = "$d_install/bin;$d_repo/git/cmd;$base_path"
-ruby 2-1_test_script.rb
+$env:PS_ENC = [Console]::OutputEncoding.HeaderName
+
+Write-Host "[Console]::OutputEncoding.HeaderName $env:PS_ENC"
+ruby 2_1_test_script.rb
 if ($LastExitCode -and $LastExitCode -ne 0) { exit 1 }
