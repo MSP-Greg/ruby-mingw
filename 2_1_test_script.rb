@@ -29,8 +29,6 @@ module TestScript
 
   Dir.chdir(D_RUBY) { |d| R_BRANCH = `git symbolic-ref -q HEAD`[/[^\/]+\Z/].strip }
 
-  YELLOW = "\e[33m"
-  RESET  = "\e[0m"
   IS_AV  = /true/i =~ ENV['APPVEYOR']                  # Appveyor build vs local
 
   DASH = case ENV['PS_ENC']
@@ -44,8 +42,10 @@ module TestScript
       "\u2015".dup.force_encoding 'utf-8'
     end
 
+  YELLOW = "\e[33m"
+  RESET  = "\e[0m"
   STRIPE_LEN = 55
-  PUTS_LEN   = 69
+  PUTS_LEN   = 74
   @@failures = 0
 
   class << self
@@ -73,7 +73,7 @@ module TestScript
                   "#{results_str}\n" \
                   "#{command_line()}\n"
 
-    puts "#{YELLOW}#{DASH * PUTS_LEN} Test Results#{RESET}"
+    puts "\n#{YELLOW}#{DASH * PUTS_LEN} Test Results#{RESET}"
     puts results_str
 
     File.binwrite(File.join(D_LOGS, "Summary - Test Results.log"), results_str)
@@ -277,7 +277,7 @@ module TestScript
     str = ''.dup
     errors = []
     log.scan(/^ *\d+\) Error:\n([^\n:]+):\n(.+?)\n([^\n]+?):(\d+):/m) { |test, msg, file, line|
-      file.sub!(/[\S]+?\/test\//, '')
+      file.sub!(__dir__, '')
       errors << [test, file.strip, line.to_i, msg]
     }
     unless errors.empty?
@@ -307,7 +307,7 @@ module TestScript
     str = ''.dup
     faults = []
     log.scan(/^ *\d+\) Failure:\n([^\n]+?) \[([^\n]+?):(\d+)\]:\n(.+?)\n\n/m) { |test, file, line, msg|
-      file.sub!(/[\S]+?\/test\//, '')
+      file.sub!(__dir__, '')
       faults << [test, file, line.to_i, msg]
     }
     unless faults.empty?

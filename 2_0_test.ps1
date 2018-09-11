@@ -130,7 +130,7 @@ $env:RUBY_FORCE_TEST_JIT = '1'
 
 $env:path = "$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 
-$args = "test-all TESTOPTS=`"-j $jobs -a --retry --job-status=normal " + `
+$args = "test-all TESTOPTS=`"-j$jobs -a --retry --job-status=normal " + `
         "--show-skip --subprocess-timeout-scale=1.5`""
 
 Run-Proc `
@@ -153,11 +153,12 @@ Run-Proc `
   -StdErr "test_spec_err.log" `
   -Title  "test-spec" `
   -Dir    $d_build `
-  -TimeLimit 240 `
-  
+  -TimeLimit 250 `
+
 #————————————————————————————————————————————————————————————————————————— mspec
 $env:path = "$d_install/bin;$d_msys2/usr/bin;$d_mingw/bin;$base_path"
-(Get-Item $d_ruby/spec).Attributes = 'Normal'
+(Get-Item $d_ruby/spec     ).Attributes = 'Normal'
+(Get-Item $d_ruby/spec/ruby).Attributes = 'Normal'
 
 Run-Proc `
   -exe    "ruby.exe" `
@@ -166,7 +167,7 @@ Run-Proc `
   -StdErr "test_mspec_err.log" `
   -Title  "test-mspec" `
   -Dir    "$d_ruby/spec/ruby" `
-  -TimeLimit 240 `
+  -TimeLimit 250 `
 
 $zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse |
   where {$_.length -eq 0}
