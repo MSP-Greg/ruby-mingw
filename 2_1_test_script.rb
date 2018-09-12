@@ -27,7 +27,11 @@ module TestScript
   D_ZIPS  = File.join __dir__, 'zips'
   D_MSYS2 = ENV['D_MSYS2']
 
-  Dir.chdir(D_RUBY) { |d| R_BRANCH = `git symbolic-ref -q HEAD`[/[^\/]+\Z/].strip }
+  Dir.chdir(D_RUBY) { |d|
+    branch = `git symbolic-ref -q HEAD`
+    branch = 'trunk' if branch.strip == ''
+    R_BRANCH = branch[/[^\/]+\Z/].strip
+  }
 
   IS_AV  = /true/i =~ ENV['APPVEYOR']                  # Appveyor build vs local
 
@@ -57,13 +61,20 @@ module TestScript
 
     warnings_str = ''.dup
     results_str  = ''.dup
+    r = []
+    sum_test_all = nil
+    logs.each { |fn|
+      str = clean_file fn
 
-    t1, sum_test_all = log_test_all( logs.find { |l| l == 'test_all.log' } )
-    results_str << t1
-    results_str << log_spec(  logs.find { |l| l == 'test_spec.log'          } )
-    results_str << log_mspec( logs.find { |l| l == 'test_mspec.log'         } )
-    results_str << log_basic( logs.find { |l| l == 'test_basic.log'         } )
-    results_str << log_btest( logs.find { |l| l == 'test_bootstrap_err.log' } )
+      case fn
+      when 'test_all.log'           ; r[0], sum_test_all = log_test_all(str)
+      when 'test_spec.log'          ; r[1] = log_spec(str)
+      when 'test_mspec.log'         ; r[2] = log_mspec(str)
+      when 'test_basic.log'         ; r[3] = log_basic(str)
+      when 'test_bootstrap_err.log' ; r[4] = log_btest(str)
+      end
+    }
+    results_str << r.join('')
 
     sp = ' ' * @@failures.to_s.length
     results_str = "#{@@failures} Total Failures/Errors                           " \
@@ -105,10 +116,24 @@ module TestScript
 
   private
 
+  def clean_file(fn)
+    @real_ruby ||= File.dirname File.realpath(File.join(__dir__, "ruby"))
+
+    str = File.binread(fn).dup
+    if /\Atest_m?spec(_err)?\.log/ =~ fn
+      str.gsub!(/\r\[[^\r\n]+\[0m /, '')
+    end
+    str.gsub!("\r"      , '')
+    str.gsub!( __dir__  , '')
+    str.gsub!( @real_ruby, '')
+    File.binwrite fn, str
+    str
+  end
+
+  # used for build log, not used in 'new' ruby-loco
   def log_warnings(log)
     str = ''.dup
-    if !log.empty? && (s = File.binread(log))
-      s.gsub!(/\r/, '')
+    if !log.empty? && (s = clean_file log)
       s.scan(/^\.\.[^\n]+\n[^\n].+?:\d+:\d+: warning: .+?\^\n/m) { |w|
         str << "#{w}\n"
       }
@@ -116,116 +141,91 @@ module TestScript
     str
   end
 
-  def log_test_all(log)
+  def log_test_all(s)
     # 16538 tests, 2190218 assertions, 1 failures, 0 errors, 234 skips
-    if log
-      if (s = File.binread(log).gsub("\r", '')).length >= 256
-        temp = s[-256,256][/^\d{5,} tests[^\r\n]+/]
-        results = String.new(temp || "CRASHED?")
-        if temp
-          @@failures += results[/assertions, (\d+) failures?/,1].to_i + results[/failures?, (\d+) errors?/,1].to_i
-          # find last skipped
-          skips_shown = 0
-          s.scan(/^ *(\d+)\) Skipped:/) { |m| skips_shown += 1 }
-          results << ", #{skips_shown} skips shown"
-        else
-          @@failures += 1
-        end
-        ["test-all  #{results}\n\n", generate_test_all(s, results) ]
+    if s.length >= 256
+      temp = s[-256,256][/^\d{5,} tests[^\n]+/]
+      results = String.new(temp || "CRASHED?")
+      if temp
+        @@failures += results[/assertions, (\d+) failures?/,1].to_i + results[/failures?, (\d+) errors?/,1].to_i
+        # find last skipped
+        skips_shown = 0
+        s.scan(/^ *(\d+)\) Skipped:/) { |m| skips_shown += 1 }
+        results << ", #{skips_shown} skips shown"
       else
         @@failures += 1
-        ["test-all   UNKNOWN see log\n\n", '']
       end
+      ["test-all  #{results}\n\n", generate_test_all(s, results) ]
     else
       @@failures += 1
-      ["test-all   log not found\n\n", '']
+      ["test-all   UNKNOWN see log\n\n", '']
     end
   end
 
-  def log_spec(log)
+  def log_spec(s)
     # 3551 files, 26041 examples, 203539 expectations, 0 failures, 0 errors, 0 tagged
-    if log
-      if (s = File.binread(log)).length >= 144
-        results = s[-144,144][/^\d{4,} files, \d{4,} examples,[^\r\n]+/]
-        if results
-          @@failures += results[/expectations, (\d+) failures?/,1].to_i +
-            results[/failures?, (\d+) errors?/,1].to_i
-          "test-spec  #{results}\n"
-        else
-          @@failures += 1
-          "test-spec  Crashed? see log\n"
-        end
+    if s.length >= 144
+      results = s[/^\d{4,} files, \d{4,} examples,[^\r\n]+/]
+      if results
+        @@failures += results[/expectations, (\d+) failures?/,1].to_i +
+          results[/failures?, (\d+) errors?/,1].to_i
+        "test-spec  #{results}\n"
       else
         @@failures += 1
-        "test-spec  UNKNOWN see log\n"
+        "test-spec  Crashed? see log\n"
       end
     else
       @@failures += 1
-      "test-spec  log not found\n"
+      "test-spec  UNKNOWN see log\n"
     end
   end
 
-  def log_mspec(log)
+  def log_mspec(s)
     # 3551 files, 26041 examples, 203539 expectations, 0 failures, 0 errors, 0 tagged
-    if log
-      if (s = File.binread(log)).length >= 144
-        results = s[-144,144][/^\d{4,} files, \d{4,} examples,[^\r\n]+/]
-        if results
-          @@failures += results[/expectations, (\d+) failures?/,1].to_i
-          # results[/failures?, (\d+) errors?/,1].to_i
-          "mspec      #{results}\n\n"
-        else
-          @@failures += 1
-          "mspec      Crashed? see log\n\n"
-        end
+    if s.length >= 144
+      results = s[/^\d{4,} files, \d{4,} examples,[^\r\n]+/]
+      if results
+        @@failures += results[/expectations, (\d+) failures?/,1].to_i
+        # results[/failures?, (\d+) errors?/,1].to_i
+        "mspec      #{results}\n\n"
       else
         @@failures += 1
-        "mspec      UNKNOWN see log\n\n"
+        "mspec      Crashed? see log\n\n"
       end
     else
       @@failures += 1
-      "mspec      log not found\n\n"
+      "mspec      UNKNOWN see log\n\n"
     end
   end
 
-  def log_basic(log)
+  def log_basic(s)
     # test succeeded
-    if log
-      if (s = File.binread(log)).length >= 192
-        if /^test succeeded/ =~ s[-192,192]
-          "test-basic test succeeded\n"
-        else
-          @@failures += 1
-          "test-basic test failed\n"
-        end
+    if s.length >= 192
+      if /^test succeeded/ =~ s[-192,192]
+        "test-basic test succeeded\n"
       else
         @@failures += 1
-        "test-basic test UNKNOWN\n"
+        "test-basic test failed\n"
       end
     else
       @@failures += 1
-      "test-basic log not found\n"
+      "test-basic test UNKNOWN\n"
     end
   end
 
-  def log_btest(log)
+  def log_btest(s)
     # PASS all 1194 tests
-    if log
-      if (s = File.binread(log)).length >= 192
-        results = s[-192,192][/^PASS all \d+ tests/]
-        if results
-          "btest      #{results}\n"
-        else
-          @@failures += 1
-          "btest      FAILED\n"
-        end
+    if s.length >= 192
+      results = s[-192,192][/^PASS all \d+ tests/]
+      if results
+        "btest      #{results}\n"
       else
         @@failures += 1
-        "btest      UNKNOWN\n"
+        "btest      FAILED\n"
       end
     else
       @@failures += 1
-      "btest      log not found\n"
+      "btest      UNKNOWN\n"
     end
   end
 

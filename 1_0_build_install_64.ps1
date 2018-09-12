@@ -47,32 +47,45 @@ function Check-Exit($msg, $pop) {
 
 #———————————————————————————————————————————————————————————————— Create-Folders
 # Creates build, install, log, and git folders at same place as ruby repo folder
+# if path exists, first remove read-only, then remove
 function Create-Folders {
   # reset to read/write
   (Get-Item $d_repo).Attributes = 'Normal'
 
   # create (or clean) build & install
   if (Test-Path   -Path ./build    -PathType Container ) {
+   (Get-Item $d_build).Attributes = 'Normal'
     Get-ChildItem -Path ./build    -Recurse -Directory -Force |
       foreach {$_.Attributes = 'Normal'}
     Remove-Item   -Path ./build    -Recurse
-  };New-Item      -Path ./build    -ItemType Directory 1> $null
+  }
 
   if (Test-Path   -Path ./$install -PathType Container ) {
+   (Get-Item ./$install).Attributes = 'Normal'
     Get-ChildItem -Path ./$install -Recurse -Directory -Force |
       foreach {$_.Attributes = 'Normal'}
     Remove-Item   -Path ./$install -Recurse
-  };New-Item      -Path ./$install -ItemType Directory 1> $null
+  }
 
   if (Test-Path   -Path ./logs     -PathType Container ) {
+   (Get-Item ./logs).Attributes = 'Normal'
+    Get-ChildItem -Path ./logs     -Recurse -Directory -Force |
+      foreach {$_.Attributes = 'Normal'}
     Remove-Item   -Path ./logs     -Recurse
-  };New-Item      -Path ./logs     -ItemType Directory 1> $null
+  }
 
   # create git symlink, which RubyGems seems to want
   if (!(Test-Path -Path ./git -PathType Container )) {
         New-Item  -Path ./git -ItemType SymbolicLink -Value $d_git 1> $null
   }
+
+  New-Item      -Path ./build    -ItemType Directory 1> $null
+  New-Item      -Path ./$install -ItemType Directory 1> $null
+  New-Item      -Path ./logs     -ItemType Directory 1> $null
+
+
   Get-ChildItem -Directory | foreach {$_.Attributes = 'Normal'}
+
 }
 
 #——————————————————————————————————————————————————————————————————————————— Run
@@ -103,24 +116,13 @@ function Strip {
   foreach ($so in $sos) { strip.exe --strip-unneeded -p $so }
   $msg = "Stripped $($dlls.length) dll files, $($exes.length) exe files, " +
               "and $($sos.length) so files"
-  Write-Host $msg -ForegroundColor $fc
+  Write-Line $msg -ForegroundColor
 }
 
 #————————————————————————————————————————————————————————————————— Set-Variables
 # set base variables, including MSYS2 location and bit related varis
 function Set-Variables-Local {
-  if ($bits -eq 32) {
-         $script:march = "i686"   ; $script:carch = "i686"   }
-  else { $script:march = "x86-64" ; $script:carch = "x86_64" }
-
   $script:ruby_path = $(ruby -e "puts RbConfig::CONFIG['bindir']").trim().replace('\', '/')
-
-  $script:chost   = "$carch-w64-mingw32"
-
-  $script:jobs    = $env:NUMBER_OF_PROCESSORS
-  $script:fc      = "Yellow"
-  $script:dash    = "$([char]0x2015)"
-  $script:dl      = $($dash * 80)
 }
 
 #——————————————————————————————————————————————————————————————————————— Set-Env
@@ -128,18 +130,13 @@ function Set-Variables-Local {
 function Set-Env {
   $env:path = "$ruby_path;$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 
+  # used in Ruby scripts
   $env:D_MSYS2  = $d_msys2
+
   $env:CFLAGS   = "-march=$march -mtune=generic -O3 -pipe"
   $env:CXXFLAGS = "-march=$march -mtune=generic -O3 -pipe"
   $env:CPPFLAGS = "-D_FORTIFY_SOURCE=2 -D__USE_MINGW_ANSI_STDIO=1 -DFD_SETSIZE=2048"
   $env:LDFLAGS  = "-pipe"
-  # not sure if below are needed, maybe jst for makepkg scripts.  See
-  # https://github.com/Alexpux/MSYS2-packages/blob/master/pacman/makepkg_mingw64.conf
-  # https://github.com/Alexpux/MSYS2-packages/blob/master/pacman/makepkg_mingw32.conf
-  $env:CARCH        = $carch
-  $env:CHOST        = $chost
-  $env:MINGW_CHOST  = $chost
-  $env:MINGW_PREFIX = "/$mingw"
 }
 
 #——————————————————————————————————————————————————————————————————— start build

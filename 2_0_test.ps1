@@ -51,10 +51,13 @@ function Run-Proc {
   if ($TimeLimit -eq $null -or $TimeLimit -eq 0 ) {
     Write-Host "Need TimeLimit!"
     exit
-  } else {
-    $msg = "Time Limit {0,8:n2} seconds" -f @($TimeLimit)
-    Write-Host $msg
   }
+
+  # $TimeLimit => $interval_ms yields 20 => 380, 1600 => 4000
+  $interval_ms = [int32](([math]::log10($TimeLimit) - 1.101) * 1902)
+  $lines = 12.5 * ($TimeLimit / $interval_ms)  # 12.5 = 1000/80  ms / line length
+  $msg = "Time Limit {0,8:n2} seconds - {1,5:n2} lines" -f @($TimeLimit, $lines)
+  Write-Host $msg
 
   $proc = Start-Process $exe -ArgumentList $e_args `
     -RedirectStandardOutput $d_logs/$StdOut `
@@ -64,8 +67,6 @@ function Run-Proc {
 
   $timer = [system.diagnostics.stopwatch]::StartNew()
   $ctr = 0
-  # 20 => ~400, 1600 => ~4200
-  $interval_ms = [int32](([math]::log10($TimeLimit) - 1.101) * 2000)
   $is_running = $true
   Do {
     if ($timer.Elapsed.TotalSeconds -gt $TimeLimit) {
@@ -86,7 +87,83 @@ function Run-Proc {
   $proc  = $null
 }
 
-#————————————————————————————————————————————————————————————————— start testing
+#————————————————————————————————————————————————————————————————————— BasicTest
+function BasicTest {
+  # needs miniruby at root (build)
+  $env:RUBY = "$d_install/bin/ruby.exe"
+  Run-Proc `
+    -exe    "ruby.exe" `
+    -e_args "-rdevkit --disable-gems ../ruby/basictest/runner.rb" `
+    -StdOut "test_basic.log" `
+    -StdErr "test_basic_err.log" `
+    -Title  "test-basic" `
+    -Dir    $d_build `
+    -TimeLimit 20
+}
+
+#————————————————————————————————————————————————————————————————— BootStrapTest
+function BootStrapTest {
+  Run-Proc `
+    -exe    "ruby.exe" `
+    -e_args "--disable-gems runner.rb --ruby=`"$d_install/bin/ruby.exe --disable-gems`" -v" `
+    -StdOut "test_bootstrap.log" `
+    -StdErr "test_bootstrap_err.log" `
+    -Title  "btest" `
+    -Dir    "$d_ruby/bootstraptest" `
+    -TimeLimit 100
+}
+
+#—————————————————————————————————————————————————————————————————————— Test-All
+function Test-All{
+  # Standard Ruby CI doesn't run this test, remove for better comparison
+  # $remove_test = "$d_ruby/test/ruby/enc/test_case_comprehensive.rb"
+  # if (Test-Path -Path $remove_test -PathType Leaf) { Remove-Item -Path $remove_test }
+
+  $env:RUBY_FORCE_TEST_JIT = '1'
+
+  $args = "test-all TESTOPTS=`"-j $jobs -a --retry --job-status=normal " + `
+          "--show-skip --subprocess-timeout-scale=1.5`""
+
+  Run-Proc `
+    -exe    $make `
+    -e_args $args `
+    -StdOut "test_all.log" `
+    -StdErr "test_all_err.log" `
+    -Title  "test-all" `
+    -Dir    $d_build `
+    -TimeLimit 1600
+}
+
+#—————————————————————————————————————————————————————————————————————————— Spec
+function Spec {
+  (Get-Item $d_build).Attributes = 'Normal'
+
+  Run-Proc `
+    -exe    $make `
+    -e_args "test-spec MSPECOPT=-j" `
+    -StdOut "test_spec.log" `
+    -StdErr "test_spec_err.log" `
+    -Title  "test-spec" `
+    -Dir    $d_build `
+    -TimeLimit 250 `
+}
+
+#————————————————————————————————————————————————————————————————————————— MSpec
+function MSpec {
+  (Get-Item "$d_ruby/spec"     ).Attributes = 'Normal'
+  (Get-Item "$d_ruby/spec/ruby").Attributes = 'Normal'
+
+  Run-Proc `
+    -exe    "ruby.exe" `
+    -e_args "-rdevkit --disable-gems ../mspec/bin/mspec -j" `
+    -StdOut "test_mspec.log" `
+    -StdErr "test_mspec_err.log" `
+    -Title  "test-mspec" `
+    -Dir    "$d_ruby/spec/ruby" `
+    -TimeLimit 250 `
+}
+
+#————————————————————————————————————————————————————————————————————————— setup
 # defaults to 64 bit
 $script:bits = if ($args.length -eq 1 -and $args[0] -eq 32) { 32 } else { 64 }
 
@@ -94,100 +171,40 @@ cd $PSScriptRoot
 . ./0_common.ps1
 Set-Variables
 
-# Standard Ruby CI doesn't run this test, remove for better comparison
-# $remove_test = "$d_ruby/test/ruby/enc/test_case_comprehensive.rb"
-# if (Test-Path -Path $remove_test -PathType Leaf) { Remove-Item -Path $remove_test }
-
-$env:GIT  = "$d_repo/git/cmd/git.exe"
-
+#————————————————————————————————————————————————————————————————— start testing
 # Set path to only include ruby install folder
 $env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
 
-#————————————————————————————————————————————————————————————————————— basictest
-# needs miniruby at root (build)
-$env:RUBY = "$d_install/bin/ruby.exe"
-Run-Proc `
-  -exe    "ruby.exe" `
-  -e_args "-rdevkit --disable-gems ../ruby/basictest/runner.rb" `
-  -StdOut "test_basic.log" `
-  -StdErr "test_basic_err.log" `
-  -Title  "test-basic" `
-  -Dir    $d_build `
-  -TimeLimit 20
+BasicTest
+BootStrapTest
 
-#————————————————————————————————————————————————————————————————————— bootstrap
-Run-Proc `
-  -exe    "ruby.exe" `
-  -e_args "--disable-gems runner.rb --ruby=`"$d_install/bin/ruby.exe --disable-gems`" -v" `
-  -StdOut "test_bootstrap.log" `
-  -StdErr "test_bootstrap_err.log" `
-  -Title  "btest" `
-  -Dir    "$d_ruby/bootstraptest" `
-  -TimeLimit 100
-
-#—————————————————————————————————————————————————————————————————————— test-all
-$env:RUBY_FORCE_TEST_JIT = '1'
-
+# No Ruby
 $env:path = "$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
+Test-All
 
-$args = "test-all TESTOPTS=`"-j$jobs -a --retry --job-status=normal " + `
-        "--show-skip --subprocess-timeout-scale=1.5`""
-
-Run-Proc `
-  -exe    $make `
-  -e_args $args `
-  -StdOut "test_all.log" `
-  -StdErr "test_all_err.log" `
-  -Title  "test-all" `
-  -Dir    $d_build `
-  -TimeLimit 1600
-
-#—————————————————————————————————————————————————————————————————————————— spec
+# Same as Test-All, just for good measure
 $env:path = "$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
-(Get-Item $d_build).Attributes = 'Normal'
+Spec
 
-Run-Proc `
-  -exe    $make `
-  -e_args "test-spec `"MSPECOPT=-j`"" `
-  -StdOut "test_spec.log" `
-  -StdErr "test_spec_err.log" `
-  -Title  "test-spec" `
-  -Dir    $d_build `
-  -TimeLimit 250 `
-
-#————————————————————————————————————————————————————————————————————————— mspec
 $env:path = "$d_install/bin;$d_msys2/usr/bin;$d_mingw/bin;$base_path"
-(Get-Item $d_ruby/spec     ).Attributes = 'Normal'
-(Get-Item $d_ruby/spec/ruby).Attributes = 'Normal'
+MSpec
 
-Run-Proc `
-  -exe    "ruby.exe" `
-  -e_args "-rdevkit --disable-gems ../mspec/bin/mspec -j" `
-  -StdOut "test_mspec.log" `
-  -StdErr "test_mspec_err.log" `
-  -Title  "test-mspec" `
-  -Dir    "$d_ruby/spec/ruby" `
-  -TimeLimit 250 `
+#—————————————————————————————————————————————————— cleanup, save artifacts, etc
 
+# remove zero length log files, typically stderr files
 $zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse |
   where {$_.length -eq 0}
-
 foreach ($file in $zero_length_files) { Remove-Item -Path $file -Force }
 
 $env:path = "$d_install/bin;$d_repo/git/cmd;$base_path"
 
-# seems to be needed for proper dash encoding
+# seems to be needed for proper dash encoding in 2_1_test_script.rb
 [Console]::OutputEncoding = New-Object -typename System.Text.UTF8Encoding
 
 # used in 2_1_test_script.rb
 $env:PS_ENC = [Console]::OutputEncoding.HeaderName
 
-ruby 2_1_test_script.rb
+ruby 2_1_test_script.rb $bits $install
 $exit = ($LastExitCode -and $LastExitCode -ne 0)
 
-Write-Host "`n$($dash * 8) Encoding $($dash * 8)" -ForegroundColor $fc
-Write-Host "PS Console  $([Console]::OutputEncoding.HeaderName)"
-Write-Host "PS Output   $($OutputEncoding.HeaderName)"
-iex "ruby.exe -e `"['external','filesystem','internal','locale'].each { |e| puts e.ljust(12) + Encoding.find(e).to_s }`""
-Write-Host ''
 if ($exit) { exit 1 }
