@@ -30,8 +30,10 @@ function Set-Variables {
   } else { $d_repo }
 
   if ($bits -eq 32) {
-         $script:march = "i686"   ; $script:carch = "i686"   }
-  else { $script:march = "x86-64" ; $script:carch = "x86_64" }
+    $script:march = "i686"   ; $script:carch = "i686"   ; $script:rarch = "i386-mingw32"
+  } else {
+    $script:march = "x86-64" ; $script:carch = "x86_64" ; $script:rarch = "x64-mingw32"
+  }
 
   $script:chost   = "$carch-w64-mingw32"
 
@@ -41,6 +43,7 @@ function Set-Variables {
   # below two items appear in MSYS2 shell printenv
   $env:MSYSTEM_CARCH = $carch
   $env:MSYSTEM_CHOST = $chost
+  $env:MSYSTEM = "MINGW$bits"
 
   # not sure if below are needed, maybe jst for makepkg scripts.  See
   # https://github.com/Alexpux/MSYS2-packages/blob/master/pacman/makepkg_mingw64.conf

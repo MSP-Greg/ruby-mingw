@@ -46,8 +46,8 @@ function Check-Exit($msg, $pop) {
 }
 
 #———————————————————————————————————————————————————————————————— Create-Folders
-# Creates build, install, log, and git folders at same place as ruby repo folder
-# if path exists, first remove read-only, then remove
+# creates build, install, log, and git folders at same place as ruby repo folder
+# most of the code is for local builds, as the folders should be cleaned
 function Create-Folders {
   # reset to read/write
   (Get-Item $d_repo).Attributes = 'Normal'
@@ -100,16 +100,15 @@ function Run($exec, $silent = $false) {
 #————————————————————————————————————————————————————————————————————————— Strip
 # Strips dll & so files in build folder
 function Strip {
-  [string[]]$dlls = Get-ChildItem -Include *.dll -Path $d_build -Recurse |
+  [string[]]$dlls = Get-ChildItem -Include *.dll -Recurse |
     select -expand fullname
   foreach ($dll in $dlls) { strip.exe --strip-unneeded -p $dll }
 
-  [string[]]$exes = Get-ChildItem -Include *.exe -Path $d_build -Recurse |
+  [string[]]$exes = Get-ChildItem -Include *.exe -Recurse |
     select -expand fullname
-  foreach ($exe in $exes) { strip.exe --strip-unneeded -p $exe }
+  foreach ($exe in $exes) { strip.exe --strip-all -p $exe }
 
-  $so_dir = if ($bits -eq 64) { "$d_build/.ext/x64-mingw32"  }
-                         else { "$d_build/.ext/i386-mingw32" }
+  $so_dir = "$d_build/.ext/$rarch"
 
   [string[]]$sos = Get-ChildItem -Include *.so -Path $so_dir -Recurse |
     select -expand fullname
@@ -122,7 +121,7 @@ function Strip {
 #————————————————————————————————————————————————————————————————— Set-Variables
 # set base variables, including MSYS2 location and bit related varis
 function Set-Variables-Local {
-  $script:ruby_path = $(ruby -e "puts RbConfig::CONFIG['bindir']").trim().replace('\', '/')
+  $script:ruby_path = $(ruby.exe -e "puts RbConfig::CONFIG['bindir']").trim().replace('\', '/')
 }
 
 #——————————————————————————————————————————————————————————————————————— Set-Env

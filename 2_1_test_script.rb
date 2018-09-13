@@ -62,7 +62,7 @@ module TestScript
     warnings_str = ''.dup
     results_str  = ''.dup
     r = []
-    sum_test_all = nil
+    sum_test_all = ''
     logs.each { |fn|
       str = clean_file fn
 

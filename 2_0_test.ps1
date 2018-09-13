@@ -7,35 +7,38 @@ time, so if a test freezes, it can be stopped.
 # Kills a process by first looping thru child & grandchild processes and
 # stopping them, then stops passed process
 function Kill-Proc($proc) {
-  $pid = $proc.id
-  While ($1_proc = $(Get-CimInstance -ClassName Win32_Process |
-    where {$_.ParentProcessId -eq $pid} )) {
-    $1_id = $1_proc.ProcessId
-    While ($2_proc = $(Get-CimInstance -ClassName Win32_Process |
-      where {$_.ParentProcessId -eq $1_id} )) {
-      $2_id = $2_proc.ProcessId
-      While ($3_proc = $(Get-CimInstance -ClassName Win32_Process |
-        where {$_.ParentProcessId -eq $2_id} )) {
-        $3_id = $3_proc.ProcessId
-        Write-Host "Stop-Process " + $3_proc.name
-        Stop-Process -Id $3_id -Force
-      }
-      if (Get-Process -pid $2_id -ErrorAction SilentlyContinue) {
-         Stop-Process -Id  $2_id -Force
-        Write-Host "Stop-Process " + $2_proc.name
-      }
+  $processes = @()
+  $p_pid = $proc.id
+  $temp = $(Get-CimInstance -ClassName Win32_Process | where {$_.ProcessId -eq $p_pid} )
+
+  $parents = @($temp)
+
+  while ($parents -and $parents.length -gt 0) {
+    $processes += $parents
+    $children = @()
+    foreach ($parent in $parents) {
+      [int32]$p_pid = $parent.ProcessId
+      $children += $(Get-CimInstance -ClassName Win32_Process |
+        where {$_.ParentProcessId -eq $p_pid} )
     }
-    if (Get-Process -pid $1_id -ErrorAction SilentlyContinue) {
-       Stop-Process -Id  $1_id -Force
-      Write-Host "Stop-Process " + $1_proc.name
+    $parents = $children
+  }
+  $t = -1 * ($processes.length)
+  $r_processes = $processes[-1..$t]
+
+  Write-Host "Process           pid   parent" -ForegroundColor $fc
+  foreach ($process in $r_processes) {
+    $t = "{0,-14}  {1,5}    {2,5}" -f @($process.Name, $process.ProcessId, $process.ParentProcessId)
+    Write-Host $t
+  }
+  foreach ($process in $r_processes) {
+    $id = $process.ProcessId
+    if (!$process.HasExited) {
+      Stop-Process -Id $id -Force
+      sleep (0.1)
     }
   }
-  if (Get-Process -pid $pid -ErrorAction SilentlyContinue) {
-     Stop-Process -Id  $pid -Force
-    Write-Host "Stop-Process " + $proc.name
-  }
-  $is_running = $false
-  Write-Host "`nProcess Killed!" -ForegroundColor $fc
+  Write-Host "Processes Killed!" -ForegroundColor $fc
 }
 
 #—————————————————————————————————————————————————————————————————————— Run-Proc
@@ -53,11 +56,10 @@ function Run-Proc {
     exit
   }
 
-  # $TimeLimit => $interval_ms yields 20 => 380, 1600 => 4000
-  $interval_ms = [int32](([math]::log10($TimeLimit) - 1.101) * 1902)
-  $lines = 12.5 * ($TimeLimit / $interval_ms)  # 12.5 = 1000/80  ms / line length
-  $msg = "Time Limit {0,8:n2} seconds - {1,5:n2} lines" -f @($TimeLimit, $lines)
+  $msg = "Time Limit {0,8:n2} seconds" -f @($TimeLimit)
   Write-Host $msg
+
+  $start = Get-Date
 
   $proc = Start-Process $exe -ArgumentList $e_args `
     -RedirectStandardOutput $d_logs/$StdOut `
@@ -65,26 +67,15 @@ function Run-Proc {
     -WorkingDirectory $Dir `
     -NoNewWindow -PassThru
 
-  $timer = [system.diagnostics.stopwatch]::StartNew()
-  $ctr = 0
-  $is_running = $true
-  Do {
-    if ($timer.Elapsed.TotalSeconds -gt $TimeLimit) {
-      if ($is_running) { Kill-Proc $proc }
-    } else {
-      $ctr += 1
-      Write-Host '.' -NoNewLine
-      if ($ctr % 80 -eq 0) { Write-Host }
-    }
-    Start-Sleep -Milliseconds $interval_ms
-  } Until ( $proc.HasExited )
-
-  $test_fails += if ($LastExitCode) { $LastExitCode } else { 0 }
-  $msg = "`nTotal Time {0,8:n2}" -f @($timer.Elapsed.TotalSeconds)
-  Write-Host $msg
-  $timer.Stop()
-  $timer = $null
-  $proc  = $null
+  Wait-Process -Id $proc.id -Timeout $TimeLimit -ea 0 -ev froze
+  if ($froze) {
+    Write-Host "Exceeded time limit..." -ForegroundColor $fc
+    Kill-Proc $proc
+  } else {
+    $diff = New-TimeSpan -Start $start -End $(Get-Date)
+    $msg = "Total Time {0,8:n2}" -f @($diff.TotalSeconds)
+    Write-Host $msg
+  }
 }
 
 #————————————————————————————————————————————————————————————————————— BasicTest
@@ -114,18 +105,21 @@ function BootStrapTest {
 }
 
 #—————————————————————————————————————————————————————————————————————— Test-All
-function Test-All{
+function Test-All {
   # Standard Ruby CI doesn't run this test, remove for better comparison
   # $remove_test = "$d_ruby/test/ruby/enc/test_case_comprehensive.rb"
   # if (Test-Path -Path $remove_test -PathType Leaf) { Remove-Item -Path $remove_test }
 
   $env:RUBY_FORCE_TEST_JIT = '1'
 
-  $args = "test-all TESTOPTS=`"-j $jobs -a --retry --job-status=normal " + `
-          "--show-skip --subprocess-timeout-scale=1.5`""
+  $args = "-I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb --extout=.ext" + `
+        " -- --disable-gems ../ruby/test/runner.rb" + `
+        " --ruby=`"./miniruby.exe -I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb --extout=.ext -- --disable-gems`"" + `
+        " --excludes-dir=../ruby/test/excludes --name=!/memory_leak/ -j $jobs -a" + `
+        " --retry --job-status=normal --show-skip --subprocess-timeout-scale=1.5"
 
   Run-Proc `
-    -exe    $make `
+    -exe    "$d_build/miniruby.exe" `
     -e_args $args `
     -StdOut "test_all.log" `
     -StdErr "test_all_err.log" `
@@ -136,7 +130,21 @@ function Test-All{
 
 #—————————————————————————————————————————————————————————————————————————— Spec
 function Spec {
+
   (Get-Item $d_build).Attributes = 'Normal'
+<#
+  $args = "-I./.ext/$rarch -I../ruby/lib --disable-gems -r./$rarch-fake" + `
+      " ../ruby/spec/mspec/bin/mspec run -B ../ruby/spec/default.mspec -j"
+
+  Run-Proc `
+    -exe    "./ruby.exe" `
+    -e_args $args `
+    -StdOut "test_spec.log" `
+    -StdErr "test_spec_err.log" `
+    -Title  "test-spec" `
+    -Dir    $d_build `
+    -TimeLimit 250
+#>
 
   Run-Proc `
     -exe    $make `
@@ -145,7 +153,8 @@ function Spec {
     -StdErr "test_spec_err.log" `
     -Title  "test-spec" `
     -Dir    $d_build `
-    -TimeLimit 250 `
+    -TimeLimit 250
+
 }
 
 #————————————————————————————————————————————————————————————————————————— MSpec
@@ -154,13 +163,13 @@ function MSpec {
   (Get-Item "$d_ruby/spec/ruby").Attributes = 'Normal'
 
   Run-Proc `
-    -exe    "ruby.exe" `
+    -exe    "$d_install/bin/ruby.exe" `
     -e_args "-rdevkit --disable-gems ../mspec/bin/mspec -j" `
     -StdOut "test_mspec.log" `
     -StdErr "test_mspec_err.log" `
     -Title  "test-mspec" `
     -Dir    "$d_ruby/spec/ruby" `
-    -TimeLimit 250 `
+    -TimeLimit 250
 }
 
 #————————————————————————————————————————————————————————————————————————— setup
@@ -204,6 +213,7 @@ $env:path = "$d_install/bin;$d_repo/git/cmd;$base_path"
 # used in 2_1_test_script.rb
 $env:PS_ENC = [Console]::OutputEncoding.HeaderName
 
+cd $d_repo
 ruby 2_1_test_script.rb $bits $install
 $exit = ($LastExitCode -and $LastExitCode -ne 0)
 
