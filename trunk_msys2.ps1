@@ -87,6 +87,9 @@ Write-Host "$($dash * 63) Updating MSYS2 / MinGW ruby depends" -ForegroundColor 
 $tools =  "___gdbm ___gmp ___libffi ___ncurses ___readline ___zlib".replace('___', $pre)
 pacman.exe -S --noconfirm --needed --noprogressbar $tools.split(' ') 2> $null
 
+# As of Sept-2018 libyaml is not installed on Appveyor
+# pacman -Rdd --noconfirm mingw-w64-x86_64-libyaml
+
 <#
 #————————————————————————————————————————————————————————————————————————— Add GPG key
 Write-Host "$($dash * 63) Adding GPG key" -ForegroundColor Yellow

@@ -6,6 +6,16 @@ If running locally, use ./local.ps1
 #
 $PSDefaultParameterValues['*:Encoding'] = 'utf8'
 
+#—————————————————————————————————————————————————————————————— Remove-Read-Only
+# removes readonly from folder and all child directories
+function Remove-Read-Only($path) {
+  (Get-Item $path).Attributes = 'Normal'
+  Get-ChildItem -Path $path -Directory -Force -Recurse |
+    foreach {$_.Attributes = 'Normal'}
+  Get-ChildItem -Path $path -File -Force -Recurse |
+    Set-ItemProperty -Name IsReadOnly -Value $false
+}
+
 #————————————————————————————————————————————————————————————————— Set-Variables
 # set base variables, including MSYS2 location and bit related varis
 function Set-Variables {
@@ -55,7 +65,7 @@ function Set-Variables {
   # below are folder shortcuts
   $script:d_build   = "$d_repo/build"
   $script:d_logs    = "$d_repo/logs"
-  $script:d_mingw   = "$d_msys2/mingw$bits"
+  $script:d_mingw   = "$d_msys2/mingw$bits/bin"
   $script:d_ruby    = "$d_repo/ruby"
   $script:d_zips    = "$d_repo/zips"
 
@@ -67,10 +77,10 @@ function Set-Variables {
   $script:dash = "$([char]0x2015)"
   $script:dl   = $($dash * 80)
 
-  # assumes symlink folder exists, some tools may not be ahppy with a space in
+  # assumes symlink folder exists, some tools may not be happy with a space in
   # git's path
   $env:GIT = "$d_repo/git/cmd/git.exe"
-  $env:MSYS_NO_PATHCONV = '1'
+  # $env:MSYS_NO_PATHCONV = '1'
 }
 
 #———————————————————————————————————————————————————————————————————— Write-Line

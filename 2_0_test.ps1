@@ -49,14 +49,14 @@ function Run-Proc {
          [string]$StdErr , [string]$e_args , [string]$Dir   , [int]$TimeLimit
   )
 
-  Write-Host "$dl $Title" -ForegroundColor $fc
+  Write-Host "$($dash * 50) $Title" -ForegroundColor $fc
 
   if ($TimeLimit -eq $null -or $TimeLimit -eq 0 ) {
     Write-Host "Need TimeLimit!"
     exit
   }
 
-  $msg = "Time Limit {0,8:n2} seconds" -f @($TimeLimit)
+  $msg = "Time Limit {0,8:n2} seconds  {1}" -f @($TimeLimit, $(Get-Date -Format mm:ss))
   Write-Host $msg
 
   $start = Get-Date
@@ -81,7 +81,7 @@ function Run-Proc {
 #————————————————————————————————————————————————————————————————————— BasicTest
 function BasicTest {
   # needs miniruby at root (build)
-  $env:RUBY = "$d_install/bin/ruby.exe"
+  $env:RUBY = $ruby_exe
   Run-Proc `
     -exe    "ruby.exe" `
     -e_args "-rdevkit --disable-gems ../ruby/basictest/runner.rb" `
@@ -95,8 +95,8 @@ function BasicTest {
 #————————————————————————————————————————————————————————————————— BootStrapTest
 function BootStrapTest {
   Run-Proc `
-    -exe    "ruby.exe" `
-    -e_args "--disable-gems runner.rb --ruby=`"$d_install/bin/ruby.exe --disable-gems`" -v" `
+    -exe    $ruby_exe `
+    -e_args "--disable=gems runner.rb --ruby=`"$ruby_exe --disable=gems`" -v" `
     -StdOut "test_bootstrap.log" `
     -StdErr "test_bootstrap_err.log" `
     -Title  "btest" `
@@ -113,8 +113,8 @@ function Test-All {
   $env:RUBY_FORCE_TEST_JIT = '1'
 
   $args = "-I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb --extout=.ext" + `
-        " -- --disable-gems ../ruby/test/runner.rb" + `
-        " --ruby=`"./miniruby.exe -I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb --extout=.ext -- --disable-gems`"" + `
+        " -- --disable=gems ../ruby/test/runner.rb" + `
+        " --ruby=`"./miniruby.exe -I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb --extout=.ext -- --disable=gems`"" + `
         " --excludes-dir=../ruby/test/excludes --name=!/memory_leak/ -j $jobs -a" + `
         " --retry --job-status=normal --show-skip --subprocess-timeout-scale=1.5"
 
@@ -132,39 +132,30 @@ function Test-All {
 function Spec {
 
   (Get-Item $d_build).Attributes = 'Normal'
-<#
-  $args = "-I./.ext/$rarch -I../ruby/lib --disable-gems -r./$rarch-fake" + `
-      " ../ruby/spec/mspec/bin/mspec run -B ../ruby/spec/default.mspec -j"
+
+  $incl = "-I./.ext/$rarch -I./.ext/common -I$d_ruby/lib"
+
+  $args = "$incl --disable=gems -r./$rarch-fake" + `
+    " $d_ruby/spec/mspec/bin/mspec run -B $d_ruby/spec/default.mspec -j $incl"
+
+  $env:SRCDIR = $d_ruby
 
   Run-Proc `
-    -exe    "./ruby.exe" `
+    -exe    "$d_build/ruby.exe" `
     -e_args $args `
     -StdOut "test_spec.log" `
     -StdErr "test_spec_err.log" `
     -Title  "test-spec" `
     -Dir    $d_build `
     -TimeLimit 250
-#>
-
-  Run-Proc `
-    -exe    $make `
-    -e_args "test-spec MSPECOPT=-j" `
-    -StdOut "test_spec.log" `
-    -StdErr "test_spec_err.log" `
-    -Title  "test-spec" `
-    -Dir    $d_build `
-    -TimeLimit 250
-
 }
 
 #————————————————————————————————————————————————————————————————————————— MSpec
 function MSpec {
-  (Get-Item "$d_ruby/spec"     ).Attributes = 'Normal'
-  (Get-Item "$d_ruby/spec/ruby").Attributes = 'Normal'
 
   Run-Proc `
-    -exe    "$d_install/bin/ruby.exe" `
-    -e_args "-rdevkit --disable-gems ../mspec/bin/mspec -j" `
+    -exe    "ruby.exe" `
+    -e_args "--disable=gems ../mspec/bin/mspec -j -rdevkit -T `"--disable=gems`"" `
     -StdOut "test_mspec.log" `
     -StdErr "test_mspec_err.log" `
     -Title  "test-mspec" `
@@ -179,6 +170,7 @@ $script:bits = if ($args.length -eq 1 -and $args[0] -eq 32) { 32 } else { 64 }
 cd $PSScriptRoot
 . ./0_common.ps1
 Set-Variables
+$ruby_exe = "$d_install/bin/ruby.exe"
 
 #————————————————————————————————————————————————————————————————— start testing
 # Set path to only include ruby install folder
@@ -188,14 +180,15 @@ BasicTest
 BootStrapTest
 
 # No Ruby
-$env:path = "$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
+$env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 Test-All
 
 # Same as Test-All, just for good measure
-$env:path = "$d_mingw/bin;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
+$env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 Spec
 
-$env:path = "$d_install/bin;$d_msys2/usr/bin;$d_mingw/bin;$base_path"
+# Remove MSYS2 folders, as devkit should enable them
+$env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
 MSpec
 
 #—————————————————————————————————————————————————— cleanup, save artifacts, etc
