@@ -4,6 +4,7 @@
 /ruby
 /rubyinstaller2
 /ruby_readline
+/zips
 
 *.txt
 *.log
