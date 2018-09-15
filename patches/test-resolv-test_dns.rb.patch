@@ -1,0 +1,24 @@
+Patch by MSP-Greg
+Try to remove Appveyor failure
+diff --git a/test/resolv/test_dns.rb b/test/resolv/test_dns.rb
+index d75a431bcc..f0bf686d17 100644
+--- a/test/resolv/test_dns.rb
++++ b/test/resolv/test_dns.rb
+@@ -155,10 +155,13 @@ def test_query_ipv4_address_timeout
+   end
+ 
+   def test_no_server
+-    u = UDPSocket.new
+-    u.bind("127.0.0.1", 0)
+-    _, port, _, host = u.addr
+-    u.close
++    u1 = UDPSocket.new ; u1.bind("127.0.0.1", 0)
++    u2 = UDPSocket.new ; u2.bind("127.0.0.1", 0)
++    u3 = UDPSocket.new ; u3.bind("127.0.0.1", 0)
++    
++    _, port, _, host = u3.addr
++    u1.close ; u2.close ; u3.close
++    u1 = nil ; u2 = nil ; u3 = nil
+     # A rase condition here.
+     # Another program may use the port.
+     # But no way to prevent it.
