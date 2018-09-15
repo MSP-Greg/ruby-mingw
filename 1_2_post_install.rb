@@ -93,7 +93,7 @@ class << self
   </dependency>
   <file name='#{libruby}'/>
 EOT
-      ['ruby.exe', 'rubyw.exe', 'miniruby.exe'].each { |fn|
+      ['ruby.exe', 'rubyw.exe'].each { |fn|
         image = File.binread(fn)
         image.gsub!(/<\?xml.*?<assembly.*?<\/assembly>\s+/m) { |m|
           orig_len = m.bytesize

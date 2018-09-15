@@ -112,9 +112,11 @@ function Test-All {
 
   $env:RUBY_FORCE_TEST_JIT = '1'
 
-  $args = "-I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb --extout=.ext" + `
-        " -- --disable=gems ../ruby/test/runner.rb" + `
-        " --ruby=`"./miniruby.exe -I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb --extout=.ext -- --disable=gems`"" + `
+  $ta_ruby = "-I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb" ` +
+             " --extout=.ext -- --disable=gems"
+
+  $args = "$ta_ruby ../ruby/test/runner.rb" + `
+        " --ruby=`"./miniruby.exe $ta_ruby`"" + `
         " --excludes-dir=../ruby/test/excludes --name=!/memory_leak/ -j $jobs -a" + `
         " --retry --job-status=normal --show-skip --subprocess-timeout-scale=1.5"
 
