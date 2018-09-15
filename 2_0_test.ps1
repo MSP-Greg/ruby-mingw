@@ -135,12 +135,12 @@ function Spec {
 
   (Get-Item $d_build).Attributes = 'Normal'
 
-  $incl = "-I./.ext/$rarch -I./.ext/common -I$d_ruby/lib"
+  $incl = "-I$d_build/.ext/$rarch -I$d_build/.ext/common -I$d_ruby/lib"
+
+  $env:SRCDIR = $d_ruby
 
   $args = "$incl --disable=gems -r./$rarch-fake" + `
     " $d_ruby/spec/mspec/bin/mspec run -B $d_ruby/spec/default.mspec -j $incl"
-
-  $env:SRCDIR = $d_ruby
 
   Run-Proc `
     -exe    "$d_build/ruby.exe" `
@@ -173,6 +173,7 @@ cd $PSScriptRoot
 . ./0_common.ps1
 Set-Variables
 $ruby_exe = "$d_install/bin/ruby.exe"
+$abi = &$ruby_exe -e "print RbConfig::CONFIG['ruby_version']"
 
 #————————————————————————————————————————————————————————————————— start testing
 # Set path to only include ruby install folder
