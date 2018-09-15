@@ -120,9 +120,8 @@ function Strip-Build {
     $t = $so.replace('\', '/')
     &$strip --strip-unneeded $t
   }
-
-  $msg = "Stripped $($dlls.length) dll files, $($exes.length) exe files, " +
-              "and $($sos.length) so files"
+  $msg = "Build:   Stripped {0,2} dll files, {1,2} exe files, and {2,3} so files," -f `
+    @($dlls.length, $exes.length, $sos.length)
   Write-Line $msg -ForegroundColor
   Pop-Location
 }
@@ -161,8 +160,8 @@ function Strip-Install {
     &$strip --strip-unneeded $t
   }
 
-  $msg = "Stripped $($dlls.length) dll files, $($exes.length) exe files, " +
-              "and $($sos.length) so files"
+  $msg = "Install: Stripped {0,2} dll files, {1,2} exe files, and {2,3} so files," -f `
+    @($dlls.length, $exes.length, $sos.length)
   Write-Line $msg -ForegroundColor
   Pop-Location
 }

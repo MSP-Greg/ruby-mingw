@@ -133,16 +133,24 @@ function Test-All {
 #—————————————————————————————————————————————————————————————————————————— Spec
 function Spec {
 
-  (Get-Item $d_build).Attributes = 'Normal'
+<#
+C:/projects/ruby/X64-mswin_140/miniruby
 
-  $incl = "-I$d_build/.ext/$rarch -I$d_build/.ext/common -I$d_ruby/lib"
+  -IC:/projects/ruby/lib C:/projects/ruby/tool/runruby.rb
+  --archdir=C:/projects/ruby/X64-mswin_140 --extout=.ext
+  -- C:/projects/ruby/spec/mspec/bin/mspec-run -B ../spec/default.mspec
+#>
+
+  (Get-Item $d_build).Attributes = 'Normal'
 
   $env:SRCDIR = $d_ruby
 
-  $args = "$incl --disable=gems -r./$rarch-fake" + `
-    " $d_ruby/spec/mspec/bin/mspec run -B $d_ruby/spec/default.mspec -j $incl"
+  $incl = "-I$d_build/.ext/$rarch -I$d_build/.ext/common -I$d_ruby/lib"
 
-  Run-Proc `
+  $args = "$incl --disable=gems -r./$rarch-fake" + `
+    " $d_ruby/spec/mspec/bin/mspec run -B $d_ruby/spec/default.mspec -j $incl $spec_excl"
+
+    Run-Proc `
     -exe    "$d_build/ruby.exe" `
     -e_args $args `
     -StdOut "test_spec.log" `
@@ -157,7 +165,7 @@ function MSpec {
 
   Run-Proc `
     -exe    "ruby.exe" `
-    -e_args "--disable=gems ../mspec/bin/mspec -j -rdevkit -T `"--disable=gems`"" `
+    -e_args "--disable=gems ../mspec/bin/mspec -j -rdevkit -T `"--disable=gems`" $spec_excl" `
     -StdOut "test_mspec.log" `
     -StdErr "test_mspec_err.log" `
     -Title  "test-mspec" `
@@ -185,6 +193,8 @@ BootStrapTest
 # No Ruby
 $env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 Test-All
+
+$spec_excl = "--exclude `"Socket.getnameinfo using IPv4 using a 3 element Array as the first argument without custom flags returns an Array containing the hostname and service name`""
 
 # Same as Test-All, just for good measure
 $env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
