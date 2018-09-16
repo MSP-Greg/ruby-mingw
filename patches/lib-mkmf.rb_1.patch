@@ -17,7 +17,7 @@ index 7f53bb4b97..5c7d750612 100644
 +    ensure
 +      if @log.nil?
 +        while File.exist?(@logfile) && !File.writable?(@logfile)
-+          sleep(0.2)
++          sleep 0.2
 +          tmr += 0.2
 +          if tmr > 2
 +            puts "#{'- ' * 20} #{@logfile} not writable #{Dir.pwd}"
@@ -81,7 +81,7 @@ index 7f53bb4b97..5c7d750612 100644
 +          tmr = 0
 +          while File.exist?(tmplog) && !File.readable?(tmplog)
 +            `attrib -r /s /d`
-+            sleep(0.2)
++            sleep 0.2
 +            tmr += 0.2
 +            if tmr > 2
 +              puts "#{'- ' * 20} #{tmplog} not readable #{Dir.pwd}"

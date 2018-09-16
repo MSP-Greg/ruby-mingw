@@ -68,7 +68,7 @@ module TestScript
 
       case fn
       when 'test_all.log'           ; r[0], sum_test_all = log_test_all(str)
-      when 'test_spec.log'          ; r[1] = log_spec(str)
+#      when 'test_spec.log'          ; r[1] = log_spec(str)
       when 'test_mspec.log'         ; r[2] = log_mspec(str)
       when 'test_basic.log'         ; r[3] = log_basic(str)
       when 'test_bootstrap_err.log' ; r[4] = log_btest(str)

@@ -111,7 +111,7 @@ function Test-All {
   # if (Test-Path -Path $remove_test -PathType Leaf) { Remove-Item -Path $remove_test }
 
   $env:RUBY_FORCE_TEST_JIT = '1'
-
+<#
   $ta_ruby = "-I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb" ` +
              " --extout=.ext -- --disable=gems"
 
@@ -128,6 +128,29 @@ function Test-All {
     -Title  "test-all" `
     -Dir    $d_build `
     -TimeLimit 1600
+#>
+
+  Copy-Item "$d_build/.ext/x64-mingw32/-test-" "$d_install/lib/ruby/$abi/$rarch" -Recurse
+  New-Item  -Path "$d_install/lib/ruby/$abi/$rarch/-test-/win32/dln" -ItemType Directory 1> $null
+  Copy-Item "$d_build/ext/-test-/win32/dln/dlntest.dll" "$d_install/lib/ruby/$abi/$rarch/-test-/win32/dln/dlntest.dll"
+  
+  ren       "$d_install/lib/ruby/site_ruby/readline.rb" "readline.rb_"
+
+  $args = "-rdevkit --disable=gems runner.rb" + `
+          " -X ./excludes -n !/memory_leak/ -j $jobs -a --show-skip" + `
+          " --retry --job-status=normal --subprocess-timeout-scale=1.5"
+
+  Run-Proc `
+    -exe    $ruby_exe `
+    -e_args $args `
+    -StdOut "test_all.log" `
+    -StdErr "test_all_err.log" `
+    -Title  "test-all" `
+    -Dir    "$d_ruby/test" `
+    -TimeLimit 1600
+
+#    Remove-Item -Path "$d_install/lib/ruby/$abi/$rarch/-test-" -Recurse
+#    ren "$d_install/lib/ruby/site_ruby/readline.rb_" "readline.rb"
 }
 
 #—————————————————————————————————————————————————————————————————————————— Spec
@@ -184,25 +207,29 @@ $ruby_exe = "$d_install/bin/ruby.exe"
 $abi = &$ruby_exe -e "print RbConfig::CONFIG['ruby_version']"
 
 #————————————————————————————————————————————————————————————————— start testing
+$env:RUBYOPT = "--disable=gems"
+
 # Set path to only include ruby install folder
 $env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
 
 BasicTest
 BootStrapTest
 
-# No Ruby
-$env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
+# No MSYS2 folder
+$env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
 Test-All
 
-$spec_excl = "--exclude `"Socket.getnameinfo using IPv4 using a 3 element Array as the first argument without custom flags returns an Array containing the hostname and service name`""
+$spec_excl = "--exclude=`"Socket.getnameinfo using IPv4 using a 3 element Array as the first argument without custom flags returns an Array containing the hostname and service name`""
 
 # Same as Test-All, just for good measure
-$env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
-Spec
+#$env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
+#Spec
 
-# Remove MSYS2 folders, as devkit should enable them
+# Just in case
 $env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
 MSpec
+
+Remove-Item env:RUBYOPT
 
 #—————————————————————————————————————————————————— cleanup, save artifacts, etc
 
@@ -224,3 +251,4 @@ ruby 2_1_test_script.rb $bits $install
 $exit = ($LastExitCode -and $LastExitCode -ne 0)
 
 if ($exit) { exit 1 }
+#>

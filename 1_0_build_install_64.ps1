@@ -120,7 +120,7 @@ function Strip-Build {
     $t = $so.replace('\', '/')
     &$strip --strip-unneeded $t
   }
-  $msg = "Build:   Stripped {0,2} dll files, {1,2} exe files, and {2,3} so files," -f `
+  $msg = "Build:   Stripped {0,2} dll files, {1,2} exe files, and {2,3} so files" -f `
     @($dlls.length, $exes.length, $sos.length)
   Write-Line $msg -ForegroundColor
   Pop-Location
@@ -134,7 +134,7 @@ function Strip-Install {
 
   $d_bin = "$d_install/bin"
 
-  [string[]]$dlls = Get-ChildItem -Include *.dll -Path $d_bin -Recurse -Depth 1 |
+  [string[]]$dlls = Get-ChildItem -Include *.dll -Path $d_bin |
     select -expand fullname
   foreach ($dll in $dlls) {
     Set-ItemProperty -Path $dll -Name IsReadOnly -Value $false
@@ -142,7 +142,7 @@ function Strip-Install {
     &$strip --strip-unneeded $t
   }
 
-  [string[]]$exes = Get-ChildItem -Include *.exe -Path $d_bin -Recurse -Depth 1 |
+  [string[]]$exes = Get-ChildItem -Include *.exe -Path $d_bin -Recurse -Depth 0 |
     select -expand fullname
   foreach ($exe in $exes) {
     Set-ItemProperty -Path $exe -Name IsReadOnly -Value $false
@@ -160,7 +160,7 @@ function Strip-Install {
     &$strip --strip-unneeded $t
   }
 
-  $msg = "Install: Stripped {0,2} dll files, {1,2} exe files, and {2,3} so files," -f `
+  $msg = "Install: Stripped {0,2} dll files, {1,2} exe files, and {2,3} so files" -f `
     @($dlls.length, $exes.length, $sos.length)
   Write-Line $msg -ForegroundColor
   Pop-Location
