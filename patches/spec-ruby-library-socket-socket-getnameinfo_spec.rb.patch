@@ -26,8 +26,8 @@ index 1e58205f25..c7aa0b05c1 100644
 +            array.should be_an_instance_of(Array)
 +            array[0].should include(@hostname)
 +            array[1].should == 'ftp'
-+          rescue SocketError
-+            # intermittent error on Appveyor
++          rescue SocketError => e
++            e.message.should =~ /sockaddr resolved to multiple nodename/
 +          end
          end
        end

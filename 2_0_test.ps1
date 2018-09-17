@@ -184,8 +184,6 @@ $miniruby_exe = "$d_install/bin/miniruby.exe"
 
 $abi = &$ruby_exe -e "print RbConfig::CONFIG['ruby_version']"
 
-if ($env:RUBYOPT) { Remove-Item env:RUBYOPT }
-
 #————————————————————————————————————————————————————————————————— start testing
 # test using readline.so, not rb-readline
 ren "$d_install/lib/ruby/site_ruby/readline.rb" "readline.rb_"
@@ -203,8 +201,6 @@ Test-All
 MSpec
 
 ren "$d_install/lib/ruby/site_ruby/readline.rb_" "readline.rb"
-
-Remove-Item env:RUBYOPT
 
 #—————————————————————————————————————————————————— cleanup, save artifacts, etc
 
