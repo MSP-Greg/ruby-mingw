@@ -185,8 +185,8 @@ module TestScript
     if s.length >= 144
       results = s[/^\d{4,} files, \d{4,} examples,[^\r\n]+/]
       if results
-        @@failures += results[/expectations, (\d+) failures?/,1].to_i
-        # results[/failures?, (\d+) errors?/,1].to_i
+        @@failures += results[/expectations, (\d+) failures?/,1].to_i +
+          results[/failures?, (\d+) errors?/,1].to_i
         "mspec      #{results}\n\n"
       else
         @@failures += 1

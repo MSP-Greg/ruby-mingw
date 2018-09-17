@@ -110,34 +110,15 @@ function Test-All {
   # $remove_test = "$d_ruby/test/ruby/enc/test_case_comprehensive.rb"
   # if (Test-Path -Path $remove_test -PathType Leaf) { Remove-Item -Path $remove_test }
 
+  $env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
+
   $env:RUBY_FORCE_TEST_JIT = '1'
-<#
-  $ta_ruby = "-I../ruby/lib -I. -I.ext/common  ../ruby/tool/runruby.rb" ` +
-             " --extout=.ext -- --disable=gems"
-
-  $args = "$ta_ruby ../ruby/test/runner.rb" + `
-        " --ruby=`"./miniruby.exe $ta_ruby`"" + `
-        " --excludes-dir=../ruby/test/excludes --name=!/memory_leak/ -j $jobs -a" + `
-        " --retry --job-status=normal --show-skip --subprocess-timeout-scale=1.5"
-
-  Run-Proc `
-    -exe    "$d_build/miniruby.exe" `
-    -e_args $args `
-    -StdOut "test_all.log" `
-    -StdErr "test_all_err.log" `
-    -Title  "test-all" `
-    -Dir    $d_build `
-    -TimeLimit 1600
-#>
 
   Copy-Item "$d_build/.ext/x64-mingw32/-test-" "$d_install/lib/ruby/$abi/$rarch" -Recurse
   New-Item  -Path "$d_install/lib/ruby/$abi/$rarch/-test-/win32/dln" -ItemType Directory 1> $null
   Copy-Item "$d_build/ext/-test-/win32/dln/dlntest.dll" "$d_install/lib/ruby/$abi/$rarch/-test-/win32/dln/dlntest.dll"
-  
-  ren       "$d_install/lib/ruby/site_ruby/readline.rb" "readline.rb_"
 
-  $args = "-rdevkit --disable=gems runner.rb" + `
-          " -X ./excludes -n !/memory_leak/ -j $jobs -a --show-skip" + `
+  $args = "--disable=gems -rdevkit runner.rb -X ./excludes -n !/memory_leak/ -j $jobs -a --show-skip" + `
           " --retry --job-status=normal --subprocess-timeout-scale=1.5"
 
   Run-Proc `
@@ -147,22 +128,13 @@ function Test-All {
     -StdErr "test_all_err.log" `
     -Title  "test-all" `
     -Dir    "$d_ruby/test" `
-    -TimeLimit 1600
+    -TimeLimit 1500
 
-#    Remove-Item -Path "$d_install/lib/ruby/$abi/$rarch/-test-" -Recurse
-#    ren "$d_install/lib/ruby/site_ruby/readline.rb_" "readline.rb"
+  Remove-Item -Path "$d_install/lib/ruby/$abi/$rarch/-test-" -Recurse
 }
 
 #—————————————————————————————————————————————————————————————————————————— Spec
 function Spec {
-
-<#
-C:/projects/ruby/X64-mswin_140/miniruby
-
-  -IC:/projects/ruby/lib C:/projects/ruby/tool/runruby.rb
-  --archdir=C:/projects/ruby/X64-mswin_140 --extout=.ext
-  -- C:/projects/ruby/spec/mspec/bin/mspec-run -B ../spec/default.mspec
-#>
 
   (Get-Item $d_build).Attributes = 'Normal'
 
@@ -173,27 +145,30 @@ C:/projects/ruby/X64-mswin_140/miniruby
   $args = "$incl --disable=gems -r./$rarch-fake" + `
     " $d_ruby/spec/mspec/bin/mspec run -B $d_ruby/spec/default.mspec -j $incl $spec_excl"
 
-    Run-Proc `
+  $env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
+
+  Run-Proc `
     -exe    "$d_build/ruby.exe" `
     -e_args $args `
     -StdOut "test_spec.log" `
     -StdErr "test_spec_err.log" `
     -Title  "test-spec" `
     -Dir    $d_build `
-    -TimeLimit 250
+    -TimeLimit 240
 }
 
 #————————————————————————————————————————————————————————————————————————— MSpec
 function MSpec {
+  $env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
 
   Run-Proc `
     -exe    "ruby.exe" `
-    -e_args "--disable=gems ../mspec/bin/mspec -j -rdevkit -T `"--disable=gems`" $spec_excl" `
+    -e_args "--disable=gems ../mspec/bin/mspec -tr -j -rdevkit -T `"--disable=gems`" $spec_excl" `
     -StdOut "test_mspec.log" `
     -StdErr "test_mspec_err.log" `
     -Title  "test-mspec" `
     -Dir    "$d_ruby/spec/ruby" `
-    -TimeLimit 250
+    -TimeLimit 240
 }
 
 #————————————————————————————————————————————————————————————————————————— setup
@@ -203,11 +178,17 @@ $script:bits = if ($args.length -eq 1 -and $args[0] -eq 32) { 32 } else { 64 }
 cd $PSScriptRoot
 . ./0_common.ps1
 Set-Variables
+
 $ruby_exe = "$d_install/bin/ruby.exe"
+$miniruby_exe = "$d_install/bin/miniruby.exe"
+
 $abi = &$ruby_exe -e "print RbConfig::CONFIG['ruby_version']"
 
+if ($env:RUBYOPT) { Remove-Item env:RUBYOPT }
+
 #————————————————————————————————————————————————————————————————— start testing
-$env:RUBYOPT = "--disable=gems"
+# test using readline.so, not rb-readline
+ren "$d_install/lib/ruby/site_ruby/readline.rb" "readline.rb_"
 
 # Set path to only include ruby install folder
 $env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
@@ -215,19 +196,13 @@ $env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
 BasicTest
 BootStrapTest
 
-# No MSYS2 folder
-$env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
 Test-All
 
-$spec_excl = "--exclude=`"Socket.getnameinfo using IPv4 using a 3 element Array as the first argument without custom flags returns an Array containing the hostname and service name`""
-
-# Same as Test-All, just for good measure
-#$env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 #Spec
 
-# Just in case
-$env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
 MSpec
+
+ren "$d_install/lib/ruby/site_ruby/readline.rb_" "readline.rb"
 
 Remove-Item env:RUBYOPT
 
@@ -251,4 +226,3 @@ ruby 2_1_test_script.rb $bits $install
 $exit = ($LastExitCode -and $LastExitCode -ne 0)
 
 if ($exit) { exit 1 }
-#>

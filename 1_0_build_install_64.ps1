@@ -103,7 +103,7 @@ function Strip-Build {
     &$strip --strip-unneeded $t
   }
 
-  [string[]]$exes = Get-ChildItem -Include *.exe -Recurse -Depth 1 |
+  [string[]]$exes = Get-ChildItem -Path ./*.exe |
     select -expand fullname
   foreach ($exe in $exes) {
     Set-ItemProperty -Path $exe -Name IsReadOnly -Value $false
@@ -134,7 +134,7 @@ function Strip-Install {
 
   $d_bin = "$d_install/bin"
 
-  [string[]]$dlls = Get-ChildItem -Include *.dll -Path $d_bin |
+  [string[]]$dlls = Get-ChildItem -Path ./bin/*.dll |
     select -expand fullname
   foreach ($dll in $dlls) {
     Set-ItemProperty -Path $dll -Name IsReadOnly -Value $false
@@ -142,7 +142,7 @@ function Strip-Install {
     &$strip --strip-unneeded $t
   }
 
-  [string[]]$exes = Get-ChildItem -Include *.exe -Path $d_bin -Recurse -Depth 0 |
+  [string[]]$exes = Get-ChildItem -Path ./bin/*.exe |
     select -expand fullname
   foreach ($exe in $exes) {
     Set-ItemProperty -Path $exe -Name IsReadOnly -Value $false
