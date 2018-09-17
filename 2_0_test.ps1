@@ -163,7 +163,7 @@ function MSpec {
 
   Run-Proc `
     -exe    "ruby.exe" `
-    -e_args "--disable=gems ../mspec/bin/mspec -tr -j -rdevkit -T `"--disable=gems`"" `
+    -e_args "--disable=gems ../mspec/bin/mspec -tr -j -rdevkit -T --disable=gems" `
     -StdOut "test_mspec.log" `
     -StdErr "test_mspec_err.log" `
     -Title  "test-mspec" `
@@ -195,6 +195,7 @@ BasicTest
 BootStrapTest
 Test-All
 #Spec
+sleep 2
 MSpec
 
 ren "$d_install/lib/ruby/site_ruby/readline.rb_" "readline.rb"
