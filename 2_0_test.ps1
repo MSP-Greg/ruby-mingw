@@ -143,7 +143,7 @@ function Spec {
   $incl = "-I$d_build/.ext/$rarch -I$d_build/.ext/common -I$d_ruby/lib"
 
   $args = "$incl --disable=gems -r./$rarch-fake" + `
-    " $d_ruby/spec/mspec/bin/mspec run -B $d_ruby/spec/default.mspec -j $incl $spec_excl"
+    " $d_ruby/spec/mspec/bin/mspec run -B $d_ruby/spec/default.mspec -j $incl"
 
   $env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 
@@ -163,7 +163,7 @@ function MSpec {
 
   Run-Proc `
     -exe    "ruby.exe" `
-    -e_args "--disable=gems ../mspec/bin/mspec -tr -j -rdevkit -T `"--disable=gems`" $spec_excl" `
+    -e_args "--disable=gems ../mspec/bin/mspec -tr -j -rdevkit -T `"--disable=gems`"" `
     -StdOut "test_mspec.log" `
     -StdErr "test_mspec_err.log" `
     -Title  "test-mspec" `
@@ -193,11 +193,8 @@ $env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
 
 BasicTest
 BootStrapTest
-
 Test-All
-
 #Spec
-
 MSpec
 
 ren "$d_install/lib/ruby/site_ruby/readline.rb_" "readline.rb"

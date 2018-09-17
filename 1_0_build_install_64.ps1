@@ -23,6 +23,28 @@ function Apply-Patches {
   Write-Host ''
 }
 
+#———————————————————————————————————————————————————————————————— Print-Time-Log
+function Print-Time-Log {
+  Write-Host $($dash * 80) -ForegroundColor $fc
+  Write-Host $script:time_info -NoNewline
+  $diff = New-TimeSpan -Start $script:time_start -End $script:time_old
+  $t = ("{0:mm}:{0:ss} {1}" -f @($diff, "Total"))
+  Write-Host $t
+}
+
+#—————————————————————————————————————————————————————————————————————— Time-Log
+function Time-Log($msg) { 
+  if ($script:time_old) {
+    $time_new = Get-Date
+    $diff = New-TimeSpan -Start $time_old -End $time_new
+    $script:time_old = $time_new
+    $script:time_info += ("{0:mm}:{0:ss} {1}`n" -f @($diff, $msg))
+  } else {
+    $script:time_old   = Get-Date
+    $script:time_start = $script:time_old
+  }
+}
+
 #———————————————————————————————————————————————————————————————————— Basic Info
 function Basic-Info {
   $env:path = "$d_install/bin;$base_path"
@@ -122,7 +144,8 @@ function Strip-Build {
   }
   $msg = "Build:   Stripped {0,2} dll files, {1,2} exe files, and {2,3} so files" -f `
     @($dlls.length, $exes.length, $sos.length)
-  Write-Line $msg -ForegroundColor
+  Write-Host $($dash * 80) -ForegroundColor $fc
+  Write-Host $msg
   Pop-Location
 }
 
@@ -150,6 +173,7 @@ function Strip-Install {
     &$strip --strip-all $t
   }
 
+  $abi = ruby.exe -e "print RbConfig::CONFIG['ruby_version']"
   $d_so = "$d_install/lib/ruby/$abi/$rarch"
 
   [string[]]$sos = Get-ChildItem -Include *.so -Path $d_so -Recurse |
@@ -162,7 +186,8 @@ function Strip-Install {
 
   $msg = "Install: Stripped {0,2} dll files, {1,2} exe files, and {2,3} so files" -f `
     @($dlls.length, $exes.length, $sos.length)
-  Write-Line $msg -ForegroundColor
+  Write-Host $($dash * 80) -ForegroundColor $fc
+  Write-Host $msg
   Pop-Location
 }
 
@@ -170,6 +195,9 @@ function Strip-Install {
 # set base variables, including MSYS2 location and bit related varis
 function Set-Variables-Local {
   $script:ruby_path = $(ruby.exe -e "puts RbConfig::CONFIG['bindir']").trim().replace('\', '/')
+  $script:time_info = ''
+  $script:time_old  = $null
+  $script:time_start = $null
 }
 
 #——————————————————————————————————————————————————————————————————————— Set-Env
@@ -208,22 +236,26 @@ cd $d_ruby
 Run "sh -c `"autoreconf -fi`""
 
 cd $d_build
+Time-Log "start"
 
 $config_args = "--build=$chost --host=$chost --target=$chost --with-out-ext=pty,syslog"
-
 Run "sh -c `"../ruby/configure --disable-install-doc --prefix=/$install $config_args`""
+Time-Log "configure"
 
 # download gems & unicode files
 Run "$make -j$jobs update-unicode"
 Run "$make -j$jobs update-gems"
+Time-Log "$make -j$jobs update-unicode, $make -j$jobs update-gems"
 
 # below sets some directories to normal in case they're set to read-only
 Remove-Read-Only $d_ruby
 Remove-Read-Only $d_build
 
 Run "$make -j$jobs 2>&1" $true
+Time-Log "$make -j$jobs"
 
 Run "$make -f GNUMakefile DESTDIR=$d_repo_u install-nodoc"
+Time-Log "$make install"
 
 cd $d_repo
 
@@ -235,11 +267,10 @@ $env:path = "$d_install/bin;$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path
 # run with new ruby (gem install, exc)
 ruby 1_3_post_install.rb $bits $install
 
-$abi = ruby.exe -e "print RbConfig::CONFIG['ruby_version']"
-
 Strip-Build
 Strip-Install
 
+Print-Time-Log
 Basic-Info
 
 # save extension build files
