@@ -80,7 +80,8 @@ function Set-Variables {
   # assumes symlink folder exists, some tools may not be happy with a space in
   # git's path
   $env:GIT = "$d_repo/git/cmd/git.exe"
-  # $env:MSYS_NO_PATHCONV = '1'
+
+  $script:UTF8 = $(New-Object System.Text.UTF8Encoding $False)
 }
 
 #———————————————————————————————————————————————————————————————————— Write-Line

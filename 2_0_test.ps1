@@ -60,6 +60,7 @@ function Run-Proc {
   Write-Host $msg
 
   $start = Get-Date
+  $status = ''
 
   $proc = Start-Process $exe -ArgumentList $e_args `
     -RedirectStandardOutput $d_logs/$StdOut `
@@ -71,14 +72,49 @@ function Run-Proc {
   if ($froze) {
     Write-Host "Exceeded time limit..." -ForegroundColor $fc
     Kill-Proc $proc
-  } else {
-    $diff = New-TimeSpan -Start $start -End $(Get-Date)
-    $msg = "Total Time {0,8:n2}" -f @($diff.TotalSeconds)
-    Write-Host $msg
+    $status = " (failed)"
   }
+  $diff = New-TimeSpan -Start $start -End $(Get-Date)
+  $msg = "Test Time  {0,8:n2}" -f @($diff.TotalSeconds)
+  Write-Host $msg
+  $script:time_info += ("{0:mm}:{0:ss} {1}`n" -f @($diff, "$Title$status"))
 }
 
-#————————————————————————————————————————————————————————————————————— BasicTest
+#———————————————————————————————————————————————————————————————————————— Finish
+# cleanup, save artifacts, etc
+function Finish {
+  # test time info message and file
+  $diff = New-TimeSpan -Start $m_start -End $(Get-Date)
+  $script:time_info += ("{0:mm}:{0:ss} {1}`n" -f @($diff, "Total"))
+  $fn = "$d_logs/time_log_tests.log"
+  [IO.File]::WriteAllText($fn, $script:time_info, $UTF8)
+  if ($is_av) {
+    Add-AppveyorMessage -Message "Time Log Test" -Details $script:time_info
+  }
+
+  # remove zero length log files, typically stderr files
+  $zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse |
+    where {$_.length -eq 0}
+  foreach ($file in $zero_length_files) { Remove-Item -Path $file -Force }
+
+  $env:path = "$d_install/bin;$d_repo/git/cmd;$base_path"
+
+  # seems to be needed for proper dash encoding in 2_1_test_script.rb
+  [Console]::OutputEncoding = New-Object -typename System.Text.UTF8Encoding
+
+  # used in 2_1_test_script.rb
+  $env:PS_ENC = [Console]::OutputEncoding.HeaderName
+
+  cd $d_repo
+  # script checks test results, determines whether build is good or not,
+  # saves artifacts and adds messages to build
+  ruby 2_1_test_script.rb $bits $install
+  $exit = ($LastExitCode -and $LastExitCode -ne 0)
+
+  if ($exit) { exit 1 }
+}
+
+#————————————————————————————————————————————————————————————————————— 
 function BasicTest {
   # needs miniruby at root (build)
   $env:RUBY = $ruby_exe
@@ -133,30 +169,6 @@ function Test-All {
   Remove-Item -Path "$d_install/lib/ruby/$abi/$rarch/-test-" -Recurse
 }
 
-#—————————————————————————————————————————————————————————————————————————— Spec
-function Spec {
-
-  (Get-Item $d_build).Attributes = 'Normal'
-
-  $env:SRCDIR = $d_ruby
-
-  $incl = "-I$d_build/.ext/$rarch -I$d_build/.ext/common -I$d_ruby/lib"
-
-  $args = "$incl --disable=gems -r./$rarch-fake" + `
-    " $d_ruby/spec/mspec/bin/mspec run -B $d_ruby/spec/default.mspec -j $incl"
-
-  $env:path = "$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
-
-  Run-Proc `
-    -exe    "$d_build/ruby.exe" `
-    -e_args $args `
-    -StdOut "test_spec.log" `
-    -StdErr "test_spec_err.log" `
-    -Title  "test-spec" `
-    -Dir    $d_build `
-    -TimeLimit 240
-}
-
 #————————————————————————————————————————————————————————————————————————— MSpec
 function MSpec {
   $env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
@@ -173,50 +185,32 @@ function MSpec {
 
 #————————————————————————————————————————————————————————————————————————— setup
 # defaults to 64 bit
-$script:bits = if ($args.length -eq 1 -and $args[0] -eq 32) { 32 } else { 64 }
+$bits = if ($args.length -eq 1 -and $args[0] -eq 32) { 32 } else { 64 }
 
 cd $PSScriptRoot
 . ./0_common.ps1
 Set-Variables
 
-$ruby_exe = "$d_install/bin/ruby.exe"
-$miniruby_exe = "$d_install/bin/miniruby.exe"
-
-$abi = &$ruby_exe -e "print RbConfig::CONFIG['ruby_version']"
+$ruby_exe  = "$d_install/bin/ruby.exe"
+$abi       = &$ruby_exe -e "print RbConfig::CONFIG['ruby_version']"
+$script:time_info = ''
 
 #————————————————————————————————————————————————————————————————— start testing
 # test using readline.so, not rb-readline
 ren "$d_install/lib/ruby/site_ruby/readline.rb" "readline.rb_"
 
-# Set path to only include ruby install folder
+# Set path to only include ruby install folder, set in Test-All and MSpec
 $env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
+
+$m_start = Get-Date
 
 BasicTest
 BootStrapTest
-Test-All
-#Spec
 sleep 2
+Test-All
+sleep 5
 MSpec
 
 ren "$d_install/lib/ruby/site_ruby/readline.rb_" "readline.rb"
 
-#—————————————————————————————————————————————————— cleanup, save artifacts, etc
-
-# remove zero length log files, typically stderr files
-$zero_length_files = Get-ChildItem -Path $d_logs -Include *.log -Recurse |
-  where {$_.length -eq 0}
-foreach ($file in $zero_length_files) { Remove-Item -Path $file -Force }
-
-$env:path = "$d_install/bin;$d_repo/git/cmd;$base_path"
-
-# seems to be needed for proper dash encoding in 2_1_test_script.rb
-[Console]::OutputEncoding = New-Object -typename System.Text.UTF8Encoding
-
-# used in 2_1_test_script.rb
-$env:PS_ENC = [Console]::OutputEncoding.HeaderName
-
-cd $d_repo
-ruby 2_1_test_script.rb $bits $install
-$exit = ($LastExitCode -and $LastExitCode -ne 0)
-
-if ($exit) { exit 1 }
+Finish

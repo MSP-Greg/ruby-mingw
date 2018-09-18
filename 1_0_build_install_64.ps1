@@ -25,11 +25,16 @@ function Apply-Patches {
 
 #———————————————————————————————————————————————————————————————— Print-Time-Log
 function Print-Time-Log {
-  Write-Host $($dash * 80) -ForegroundColor $fc
-  Write-Host $script:time_info -NoNewline
   $diff = New-TimeSpan -Start $script:time_start -End $script:time_old
-  $t = ("{0:mm}:{0:ss} {1}" -f @($diff, "Total"))
-  Write-Host $t
+  $script:time_info += ("{0:mm}:{0:ss} {1}" -f @($diff, "Total"))
+
+  Write-Host $($dash * 80) -ForegroundColor $fc
+  Write-Host $script:time_info
+  $fn = "$d_logs/time_log_build.log"
+  [IO.File]::WriteAllText($fn, $script:time_info, $UTF8)
+  if ($is_av) {
+    Add-AppveyorMessage -Message "Time Log Build" -Details $script:time_info
+  }
 }
 
 #—————————————————————————————————————————————————————————————————————— Time-Log
@@ -262,13 +267,14 @@ cd $d_repo
 # run with old ruby
 ruby 1_2_post_install.rb $bits $install
 
-$env:path = "$d_install/bin;$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
-
 # run with new ruby (gem install, exc)
+$env:path = "$d_install/bin;$d_mingw;$d_repo/git/cmd;$d_msys2/usr/bin;$base_path"
 ruby 1_3_post_install.rb $bits $install
+Time-Log "post install processing"
 
 Strip-Build
 Strip-Install
+Time-Log "strip build & install binary files"
 
 Print-Time-Log
 Basic-Info

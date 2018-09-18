@@ -87,13 +87,13 @@ module TestScript
     puts "\n#{YELLOW}#{DASH * PUTS_LEN} Test Results#{RESET}"
     puts results_str
 
-    File.binwrite(File.join(D_LOGS, "Summary - Test Results.log"), results_str)
+    File.binwrite(File.join(D_LOGS, "Summary_Test_Results.log"), results_str)
 
     unless sum_test_all.empty?
       puts "\n#{YELLOW}#{DASH * PUTS_LEN} Summary test-all#{RESET}"
       puts sum_test_all
       sum_test_all = sum_test_all.gsub(/^\e\[33m|\e\[0m$/, '')
-      File.binwrite(File.join(D_LOGS, "Summary - test-all.log"), sum_test_all)
+      File.binwrite(File.join(D_LOGS, "Summary_test-all.log"), sum_test_all)
     end
 
     Dir.chdir(__dir__)
