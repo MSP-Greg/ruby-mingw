@@ -114,8 +114,9 @@ function Finish {
   if ($exit) { exit 1 }
 }
 
-#————————————————————————————————————————————————————————————————————— 
+#—————————————————————————————————————————————————————————————————————
 function BasicTest {
+  $env:path = "$d_install/bin;$base_path"
   # needs miniruby at root (build)
   $env:RUBY = $ruby_exe
   Run-Proc `
@@ -130,6 +131,8 @@ function BasicTest {
 
 #————————————————————————————————————————————————————————————————— BootStrapTest
 function BootStrapTest {
+  $env:path = "$d_install/bin;$base_path"
+
   Run-Proc `
     -exe    $ruby_exe `
     -e_args "--disable=gems runner.rb --ruby=`"$ruby_exe --disable=gems`" -v" `
@@ -146,16 +149,18 @@ function Test-All {
   # $remove_test = "$d_ruby/test/ruby/enc/test_case_comprehensive.rb"
   # if (Test-Path -Path $remove_test -PathType Leaf) { Remove-Item -Path $remove_test }
 
-  $env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
+  # copy items from build folder that are needed for test-all
+  $ruby_so = "$d_install/lib/ruby/$abi/$rarch"
+  Copy-Item "$d_build/.ext/x64-mingw32/-test-" $ruby_so -Recurse
+  New-Item  -Path "$ruby_so/-test-/win32/dln" -ItemType Directory 1> $null
+  Copy-Item "$d_build/ext/-test-/win32/dln/dlntest.dll" `
+                "$ruby_so/-test-/win32/dln/dlntest.dll"
 
+  $env:path = "$d_install/bin;$d_repo/git/cmd$base_path"
   $env:RUBY_FORCE_TEST_JIT = '1'
 
-  Copy-Item "$d_build/.ext/x64-mingw32/-test-" "$d_install/lib/ruby/$abi/$rarch" -Recurse
-  New-Item  -Path "$d_install/lib/ruby/$abi/$rarch/-test-/win32/dln" -ItemType Directory 1> $null
-  Copy-Item "$d_build/ext/-test-/win32/dln/dlntest.dll" "$d_install/lib/ruby/$abi/$rarch/-test-/win32/dln/dlntest.dll"
-
-  $args = "--disable=gems -rdevkit runner.rb -X ./excludes -n !/memory_leak/ -j $jobs -a --show-skip" + `
-          " --retry --job-status=normal --subprocess-timeout-scale=1.5"
+  $args = "--disable=gems -rdevkit runner.rb -X ./excludes -n !/memory_leak/ -j $jobs" + `
+    " -a --show-skip --retry --job-status=normal --subprocess-timeout-scale=1.5"
 
   Run-Proc `
     -exe    $ruby_exe `
@@ -175,7 +180,7 @@ function MSpec {
 
   Run-Proc `
     -exe    "ruby.exe" `
-    -e_args "--disable=gems ../mspec/bin/mspec -tr -j -rdevkit -T --disable=gems" `
+    -e_args "--disable=gems -rdevkit ../mspec/bin/mspec -tr -j -T `"--disable=gems`"" `
     -StdOut "test_mspec.log" `
     -StdErr "test_mspec_err.log" `
     -Title  "test-mspec" `
@@ -199,12 +204,12 @@ $script:time_info = ''
 # test using readline.so, not rb-readline
 ren "$d_install/lib/ruby/site_ruby/readline.rb" "readline.rb_"
 
-# Set path to only include ruby install folder, set in Test-All and MSpec
-$env:path = "$d_install/bin;$d_msys2/usr/bin;$base_path"
+# PATH is set in each test function
 
 $m_start = Get-Date
 
 BasicTest
+sleep 2
 BootStrapTest
 sleep 2
 Test-All

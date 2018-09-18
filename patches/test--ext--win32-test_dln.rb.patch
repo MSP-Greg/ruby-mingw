@@ -9,7 +9,7 @@ index e8f68ac4d4..301edf78ef 100644
        def test_check_imported
          bug = '[Bug #6303]'
 -        so = ::File.expand_path("../ext/-test-/win32/dln/dlntest.dll", ::EnvUtil.rubybin)
-+        if !File.exist? (so = File.join(RbConfig::CONFIG['archdir'], '-test-/win32/dln/dlntest.dll'))
++        unless File.exist? (so = File.join(RbConfig::CONFIG['archdir'], '-test-/win32/dln/dlntest.dll'))
 +          so = ::File.expand_path("../ext/-test-/win32/dln/dlntest.dll", ::EnvUtil.rubybin)
 +        end
          assert_send([::File, :file?, so])
