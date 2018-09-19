@@ -218,6 +218,4 @@ MSpec
 
 ren "$d_install/lib/ruby/site_ruby/readline.rb_" "readline.rb"
 
-Copy-Item "$d_repo/trunk_msys2.ps1" "$d_install/trunk_msys2.ps1"
-
 Finish
